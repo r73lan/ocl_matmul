@@ -1,0 +1,20 @@
+#ProfileFileVersion=5.6
+#ProfilerVersion=5.6.0
+#API=OpenCL
+#Application=C:/Users/ocl_user24_0/TEST/skkv-mp-gpu/actions-runner/_work/gpu24-ocl-matmul-r73lan/gpu24-ocl-matmul-r73lan/__test.exe
+#ApplicationArgs=--input test_data/in0.txt --output test_data/out_0.txt --realization 2 --device-type all --device-index 0
+#WorkingDirectory=.
+#Device gfx1010 Platform Vendor=Advanced Micro Devices, Inc.
+#Device gfx1010 Platform Name=AMD Accelerated Parallel Processing
+#Device gfx1010 Platform Version=OpenCL 2.1 AMD-APP (3004.8)
+#Device gfx1010 CLDriver Version=3004.8 (PAL,LC)
+#Device gfx1010 CLRuntime Version=OpenCL 2.0 AMD-APP (3004.8)
+#Device gfx1010 NumberAppAddressBits=64
+#Device gfx1010 Board Name=AMD Radeon RX 5700 XT
+#Device gfx1010 PCIE device id=29471
+#OS Version=Windows 10 Build 10.0.0
+#DisplayName=matmul_2_prof
+#ListSeparator=;
+#ForceSinglePass=False
+Method; ExecutionOrder; ThreadID; CallIndex; GlobalWorkSize; WorkGroupSize; Time; LocalMemSize; VGPRs; SGPRs; ScratchRegs; Wavefronts; VALUInsts; SALUInsts; VFetchInsts; SFetchInsts; VWriteInsts; LDSInsts; GDSInsts; VALUUtilization; VALUBusy; SALUBusy; FetchSize; WriteSize; L0CacheHit; L1CacheHit; L2CacheHit; MemUnitBusy; MemUnitStalled; WriteUnitStalled; LDSBankConflict
+add__k1_gfx10101; 1; 5404; 26; {   2064    2064       1}; {   16    16     1};        23,83560; 2176; 48; 35; 0;    133128,00;      3247,00;       267,00;       258,00;         5,00;         0,00;      2322,00;         0,00;       100,00;        19,31;         2,93;   2212178,94;     16641,50;         0,14;        29,38;        62,04;        93,62;         0,17;         0,00;         1,42
