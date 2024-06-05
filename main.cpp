@@ -459,7 +459,7 @@ int main(int argc, char* argv[]) {
 		double kernel_time = (double)(kernel_end - kernel_start);
 		double total_time = (double)((write_end - write_start) + (kernel_end - kernel_start) + (read_end - read_start));
 		printf("Device: %s\tPlatform: %s Time: %g\t%g\n", my_device_name.c_str(), my_platform_name.c_str(), kernel_time / 1e6, total_time / 1e6);
-		writeMatrixToFile(M, N, c_val, args["output"].c_str());
+		writeMatrixToFile(N, M, c_val, args["output"].c_str());
 		clReleaseKernel(kernel);
 		clReleaseProgram(prog);
 		clReleaseMemObject(a);
@@ -577,7 +577,7 @@ int main(int argc, char* argv[]) {
 				c_val[i * N + j] = c_val_exp[i * add_N + j];
 			}
 		}
-		writeMatrixToFile(M, N, c_val, args["output"].c_str());
+		writeMatrixToFile(N, M, c_val, args["output"].c_str());
 		clReleaseKernel(kernel);
 		clReleaseProgram(prog);
 		clReleaseMemObject(a);
