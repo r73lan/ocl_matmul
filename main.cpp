@@ -147,7 +147,7 @@ void writeMatrixToFile(int N, int M, cl_float* matrix, const char* filename) {
 }
 
 int main(int argc, char* argv[]) {
-	// настройка входных данных
+	// Г­Г Г±ГІГ°Г®Г©ГЄГ  ГўГµГ®Г¤Г­Г»Гµ Г¤Г Г­Г­Г»Гµ
 	std::map<std::string, std::string> args;
 	for (int i = 1; i < argc; i++) {
 		std::string arg = argv[i];
@@ -216,7 +216,7 @@ int main(int argc, char* argv[]) {
 	}
 	//printMap(args);
 	const char* filename = args["input"].c_str();
-	//чтение матриц с файла
+	//Г·ГІГҐГ­ГЁГҐ Г¬Г ГІГ°ГЁГ¶ Г± ГґГ Г©Г«Г 
 	FILE* file = fopen(filename, "r");
 	if (file == NULL) {
 		fprintf(stderr, "Cannot open the file: %s\n", filename);
@@ -254,7 +254,7 @@ int main(int argc, char* argv[]) {
 
 	fclose(file);
 
-	// Проверка загруженных данных
+	// ГЏГ°Г®ГўГҐГ°ГЄГ  Г§Г ГЈГ°ГіГ¦ГҐГ­Г­Г»Гµ Г¤Г Г­Г­Г»Гµ
 	/*printf("Matrix A:\n");
 	for (int i = 0; i < M; ++i) {
 		for (int j = 0; j < K; ++j) {
@@ -270,7 +270,7 @@ int main(int argc, char* argv[]) {
 		printf("\n");
 	}*/
 
-	//выбор девайса
+	//ГўГ»ГЎГ®Г° Г¤ГҐГўГ Г©Г±Г 
 	const std::vector<PlatformDevices> PlatformsAndDevices = getAllPlatformsAndDevices();
 	cl_int index;
 	std::map<std::string, std::vector<cl_device_id>> listdevices = SelectDevice(PlatformsAndDevices);
@@ -423,9 +423,9 @@ int main(int argc, char* argv[]) {
 		data[size] = 0;
 		fclose(ptrFile);
 		//printf("%s", data);
-		cl_program prog = clCreateProgramWithSource(context, 1, (const char**)&data, &size, NULL); // подготовка к вычислениям. это есть загрузка текста с .txt файла на девайс, тупо загрузка текста
-		cl_int build_result = clBuildProgram(prog, 1, &my_device, "", NULL, NULL); //это уже build. сборка загруженного текста
-		if (build_result) { //выводим лог ошибок, если неудачная сборка.если удалить в .txt ";" после команды, то он укажет на ошибку
+		cl_program prog = clCreateProgramWithSource(context, 1, (const char**)&data, &size, NULL); // ГЇГ®Г¤ГЈГ®ГІГ®ГўГЄГ  ГЄ ГўГ»Г·ГЁГ±Г«ГҐГ­ГЁГїГ¬. ГЅГІГ® ГҐГ±ГІГј Г§Г ГЈГ°ГіГ§ГЄГ  ГІГҐГЄГ±ГІГ  Г± .txt ГґГ Г©Г«Г  Г­Г  Г¤ГҐГўГ Г©Г±, ГІГіГЇГ® Г§Г ГЈГ°ГіГ§ГЄГ  ГІГҐГЄГ±ГІГ 
+		cl_int build_result = clBuildProgram(prog, 1, &my_device, "", NULL, NULL); //ГЅГІГ® ГіГ¦ГҐ build. Г±ГЎГ®Г°ГЄГ  Г§Г ГЈГ°ГіГ¦ГҐГ­Г­Г®ГЈГ® ГІГҐГЄГ±ГІГ 
+		if (build_result) { //ГўГ»ГўГ®Г¤ГЁГ¬ Г«Г®ГЈ Г®ГёГЁГЎГ®ГЄ, ГҐГ±Г«ГЁ Г­ГҐГіГ¤Г Г·Г­Г Гї Г±ГЎГ®Г°ГЄГ .ГҐГ±Г«ГЁ ГіГ¤Г Г«ГЁГІГј Гў .txt ";" ГЇГ®Г±Г«ГҐ ГЄГ®Г¬Г Г­Г¤Г», ГІГ® Г®Г­ ГіГЄГ Г¦ГҐГІ Г­Г  Г®ГёГЁГЎГЄГі
 			size_t size_build_log;
 			clGetProgramBuildInfo(prog, my_device, CL_PROGRAM_BUILD_LOG, 0, NULL, &size_build_log);
 			std::vector <char> build_log_name(size_build_log);
@@ -433,18 +433,18 @@ int main(int argc, char* argv[]) {
 			printf("%s\n", build_log_name.data());
 		}
 		cl_event write_event, kernel_event, read_event;
-		clEnqueueWriteBuffer(queue, a, CL_FALSE, 0, sizeof(cl_float) * M * K, a_val, 0, NULL, &write_event); //2 переменные передаю данные с хоста в буфер
-		clEnqueueWriteBuffer(queue, b, CL_FALSE, 0, sizeof(cl_float) * K * N, b_val, 0, NULL, &write_event);  // CL_FALSE - не блокирующая операция - выполняется быстрее. я простро кладу. если CL_TRUE (случай ниже с c), то операция блокирующая - мы ждем результат других операций и только потом перемещаем буфер
-		cl_kernel kernel = clCreateKernel(prog, "add", NULL); // создаем ядро. в теории может быть несколько ядер. например, у нас main тоже ядро. тут ядро назодится в функции add (см .txt файл)
-		clSetKernelArg(kernel, 0, sizeof(cl_mem), &a); //0,1,2 - номер аргумента в функции .txt
+		clEnqueueWriteBuffer(queue, a, CL_FALSE, 0, sizeof(cl_float) * M * K, a_val, 0, NULL, &write_event); //2 ГЇГҐГ°ГҐГ¬ГҐГ­Г­Г»ГҐ ГЇГҐГ°ГҐГ¤Г Гѕ Г¤Г Г­Г­Г»ГҐ Г± ГµГ®Г±ГІГ  Гў ГЎГіГґГҐГ°
+		clEnqueueWriteBuffer(queue, b, CL_FALSE, 0, sizeof(cl_float) * K * N, b_val, 0, NULL, &write_event);  // CL_FALSE - Г­ГҐ ГЎГ«Г®ГЄГЁГ°ГіГѕГ№Г Гї Г®ГЇГҐГ°Г Г¶ГЁГї - ГўГ»ГЇГ®Г«Г­ГїГҐГІГ±Гї ГЎГ»Г±ГІГ°ГҐГҐ. Гї ГЇГ°Г®Г±ГІГ°Г® ГЄГ«Г Г¤Гі. ГҐГ±Г«ГЁ CL_TRUE (Г±Г«ГіГ·Г Г© Г­ГЁГ¦ГҐ Г± c), ГІГ® Г®ГЇГҐГ°Г Г¶ГЁГї ГЎГ«Г®ГЄГЁГ°ГіГѕГ№Г Гї - Г¬Г» Г¦Г¤ГҐГ¬ Г°ГҐГ§ГіГ«ГјГІГ ГІ Г¤Г°ГіГЈГЁГµ Г®ГЇГҐГ°Г Г¶ГЁГ© ГЁ ГІГ®Г«ГјГЄГ® ГЇГ®ГІГ®Г¬ ГЇГҐГ°ГҐГ¬ГҐГ№Г ГҐГ¬ ГЎГіГґГҐГ°
+		cl_kernel kernel = clCreateKernel(prog, "add", NULL); // Г±Г®Г§Г¤Г ГҐГ¬ ГїГ¤Г°Г®. Гў ГІГҐГ®Г°ГЁГЁ Г¬Г®Г¦ГҐГІ ГЎГ»ГІГј Г­ГҐГ±ГЄГ®Г«ГјГЄГ® ГїГ¤ГҐГ°. Г­Г ГЇГ°ГЁГ¬ГҐГ°, Гі Г­Г Г± main ГІГ®Г¦ГҐ ГїГ¤Г°Г®. ГІГіГІ ГїГ¤Г°Г® Г­Г Г§Г®Г¤ГЁГІГ±Гї Гў ГґГіГ­ГЄГ¶ГЁГЁ add (Г±Г¬ .txt ГґГ Г©Г«)
+		clSetKernelArg(kernel, 0, sizeof(cl_mem), &a); //0,1,2 - Г­Г®Г¬ГҐГ° Г Г°ГЈГіГ¬ГҐГ­ГІГ  Гў ГґГіГ­ГЄГ¶ГЁГЁ .txt
 		clSetKernelArg(kernel, 1, sizeof(cl_mem), &b);
 		clSetKernelArg(kernel, 2, sizeof(cl_mem), &c);
 		clSetKernelArg(kernel, 3, sizeof(cl_uint), &M);
 		clSetKernelArg(kernel, 4, sizeof(cl_uint), &N);
 		clSetKernelArg(kernel, 5, sizeof(cl_uint), &K);
-		size_t global_work_size[2] = { N, M }; //если двумерный отсчет тредов - создаю массив из 2х size t. у нас сейчас одномерная индексация тредов, а всего тредов size_array = 3. в кадом треде вычисляется свой c[i]
-		clEnqueueNDRangeKernel(queue, kernel, 2, NULL, &global_work_size[0], NULL, 0, NULL, &kernel_event); //kernel ставится в очередь
-		clEnqueueReadBuffer(queue, c, CL_TRUE, 0, sizeof(cl_float) * M * N, c_val, 0, NULL, &read_event); // Считываем с буфера результат. флаг CL_TRUE - тут блокирующая операция, т.к. нам нужно сначала дождаться результата суммирования, и потом вывести результат в буфер
+		size_t global_work_size[2] = { N, M }; //ГҐГ±Г«ГЁ Г¤ГўГіГ¬ГҐГ°Г­Г»Г© Г®ГІГ±Г·ГҐГІ ГІГ°ГҐГ¤Г®Гў - Г±Г®Г§Г¤Г Гѕ Г¬Г Г±Г±ГЁГў ГЁГ§ 2Гµ size t. Гі Г­Г Г± Г±ГҐГ©Г·Г Г± Г®Г¤Г­Г®Г¬ГҐГ°Г­Г Гї ГЁГ­Г¤ГҐГЄГ±Г Г¶ГЁГї ГІГ°ГҐГ¤Г®Гў, Г  ГўГ±ГҐГЈГ® ГІГ°ГҐГ¤Г®Гў size_array = 3. Гў ГЄГ Г¤Г®Г¬ ГІГ°ГҐГ¤ГҐ ГўГ»Г·ГЁГ±Г«ГїГҐГІГ±Гї Г±ГўГ®Г© c[i]
+		clEnqueueNDRangeKernel(queue, kernel, 2, NULL, &global_work_size[0], NULL, 0, NULL, &kernel_event); //kernel Г±ГІГ ГўГЁГІГ±Гї Гў Г®Г·ГҐГ°ГҐГ¤Гј
+		clEnqueueReadBuffer(queue, c, CL_TRUE, 0, sizeof(cl_float) * M * N, c_val, 0, NULL, &read_event); // Г‘Г·ГЁГІГ»ГўГ ГҐГ¬ Г± ГЎГіГґГҐГ°Г  Г°ГҐГ§ГіГ«ГјГІГ ГІ. ГґГ«Г ГЈ CL_TRUE - ГІГіГІ ГЎГ«Г®ГЄГЁГ°ГіГѕГ№Г Гї Г®ГЇГҐГ°Г Г¶ГЁГї, ГІ.ГЄ. Г­Г Г¬ Г­ГіГ¦Г­Г® Г±Г­Г Г·Г Г«Г  Г¤Г®Г¦Г¤Г ГІГјГ±Гї Г°ГҐГ§ГіГ«ГјГІГ ГІГ  Г±ГіГ¬Г¬ГЁГ°Г®ГўГ Г­ГЁГї, ГЁ ГЇГ®ГІГ®Г¬ ГўГ»ГўГҐГ±ГІГЁ Г°ГҐГ§ГіГ«ГјГІГ ГІ Гў ГЎГіГґГҐГ°
 
 		cl_ulong write_start, write_end, kernel_start, kernel_end, read_start, read_end;
 
@@ -534,9 +534,9 @@ int main(int argc, char* argv[]) {
 		data[size] = 0;
 		fclose(ptrFile);
 		//printf("%s", data);
-		cl_program prog = clCreateProgramWithSource(context, 1, (const char**)&data, &size, NULL); // подготовка к вычислениям. это есть загрузка текста с .txt файла на девайс, тупо загрузка текста
-		cl_int build_result = clBuildProgram(prog, 1, &my_device, "", NULL, NULL); //это уже build. сборка загруженного текста
-		if (build_result) { //выводим лог ошибок, если неудачная сборка.если удалить в .txt ";" после команды, то он укажет на ошибку
+		cl_program prog = clCreateProgramWithSource(context, 1, (const char**)&data, &size, NULL); // ГЇГ®Г¤ГЈГ®ГІГ®ГўГЄГ  ГЄ ГўГ»Г·ГЁГ±Г«ГҐГ­ГЁГїГ¬. ГЅГІГ® ГҐГ±ГІГј Г§Г ГЈГ°ГіГ§ГЄГ  ГІГҐГЄГ±ГІГ  Г± .txt ГґГ Г©Г«Г  Г­Г  Г¤ГҐГўГ Г©Г±, ГІГіГЇГ® Г§Г ГЈГ°ГіГ§ГЄГ  ГІГҐГЄГ±ГІГ 
+		cl_int build_result = clBuildProgram(prog, 1, &my_device, "", NULL, NULL); //ГЅГІГ® ГіГ¦ГҐ build. Г±ГЎГ®Г°ГЄГ  Г§Г ГЈГ°ГіГ¦ГҐГ­Г­Г®ГЈГ® ГІГҐГЄГ±ГІГ 
+		if (build_result) { //ГўГ»ГўГ®Г¤ГЁГ¬ Г«Г®ГЈ Г®ГёГЁГЎГ®ГЄ, ГҐГ±Г«ГЁ Г­ГҐГіГ¤Г Г·Г­Г Гї Г±ГЎГ®Г°ГЄГ .ГҐГ±Г«ГЁ ГіГ¤Г Г«ГЁГІГј Гў .txt ";" ГЇГ®Г±Г«ГҐ ГЄГ®Г¬Г Г­Г¤Г», ГІГ® Г®Г­ ГіГЄГ Г¦ГҐГІ Г­Г  Г®ГёГЁГЎГЄГі
 			size_t size_build_log;
 			clGetProgramBuildInfo(prog, my_device, CL_PROGRAM_BUILD_LOG, 0, NULL, &size_build_log);
 			std::vector <char> build_log_name(size_build_log);
@@ -544,19 +544,19 @@ int main(int argc, char* argv[]) {
 			printf("%s\n", build_log_name.data());
 		}
 		cl_event write_event, kernel_event, read_event;
-		clEnqueueWriteBuffer(queue, a, CL_FALSE, 0, sizeof(cl_float) * add_M * add_K, a_val_exp, 0, NULL, &write_event); //2 переменные передаю данные с хоста в буфер
-		clEnqueueWriteBuffer(queue, b, CL_FALSE, 0, sizeof(cl_float) * add_K * add_N, b_val_exp, 0, NULL, &write_event);  // CL_FALSE - не блокирующая операция - выполняется быстрее. я простро кладу. если CL_TRUE (случай ниже с c), то операция блокирующая - мы ждем результат других операций и только потом перемещаем буфер
-		cl_kernel kernel = clCreateKernel(prog, "add", NULL); // создаем ядро. в теории может быть несколько ядер. например, у нас main тоже ядро. тут ядро назодится в функции add (см .txt файл)
-		clSetKernelArg(kernel, 0, sizeof(cl_mem), &a); //0,1,2 - номер аргумента в функции .txt
+		clEnqueueWriteBuffer(queue, a, CL_FALSE, 0, sizeof(cl_float) * add_M * add_K, a_val_exp, 0, NULL, &write_event); //2 ГЇГҐГ°ГҐГ¬ГҐГ­Г­Г»ГҐ ГЇГҐГ°ГҐГ¤Г Гѕ Г¤Г Г­Г­Г»ГҐ Г± ГµГ®Г±ГІГ  Гў ГЎГіГґГҐГ°
+		clEnqueueWriteBuffer(queue, b, CL_FALSE, 0, sizeof(cl_float) * add_K * add_N, b_val_exp, 0, NULL, &write_event);  // CL_FALSE - Г­ГҐ ГЎГ«Г®ГЄГЁГ°ГіГѕГ№Г Гї Г®ГЇГҐГ°Г Г¶ГЁГї - ГўГ»ГЇГ®Г«Г­ГїГҐГІГ±Гї ГЎГ»Г±ГІГ°ГҐГҐ. Гї ГЇГ°Г®Г±ГІГ°Г® ГЄГ«Г Г¤Гі. ГҐГ±Г«ГЁ CL_TRUE (Г±Г«ГіГ·Г Г© Г­ГЁГ¦ГҐ Г± c), ГІГ® Г®ГЇГҐГ°Г Г¶ГЁГї ГЎГ«Г®ГЄГЁГ°ГіГѕГ№Г Гї - Г¬Г» Г¦Г¤ГҐГ¬ Г°ГҐГ§ГіГ«ГјГІГ ГІ Г¤Г°ГіГЈГЁГµ Г®ГЇГҐГ°Г Г¶ГЁГ© ГЁ ГІГ®Г«ГјГЄГ® ГЇГ®ГІГ®Г¬ ГЇГҐГ°ГҐГ¬ГҐГ№Г ГҐГ¬ ГЎГіГґГҐГ°
+		cl_kernel kernel = clCreateKernel(prog, "add", NULL); // Г±Г®Г§Г¤Г ГҐГ¬ ГїГ¤Г°Г®. Гў ГІГҐГ®Г°ГЁГЁ Г¬Г®Г¦ГҐГІ ГЎГ»ГІГј Г­ГҐГ±ГЄГ®Г«ГјГЄГ® ГїГ¤ГҐГ°. Г­Г ГЇГ°ГЁГ¬ГҐГ°, Гі Г­Г Г± main ГІГ®Г¦ГҐ ГїГ¤Г°Г®. ГІГіГІ ГїГ¤Г°Г® Г­Г Г§Г®Г¤ГЁГІГ±Гї Гў ГґГіГ­ГЄГ¶ГЁГЁ add (Г±Г¬ .txt ГґГ Г©Г«)
+		clSetKernelArg(kernel, 0, sizeof(cl_mem), &a); //0,1,2 - Г­Г®Г¬ГҐГ° Г Г°ГЈГіГ¬ГҐГ­ГІГ  Гў ГґГіГ­ГЄГ¶ГЁГЁ .txt
 		clSetKernelArg(kernel, 1, sizeof(cl_mem), &b);
 		clSetKernelArg(kernel, 2, sizeof(cl_mem), &c);
 		clSetKernelArg(kernel, 3, sizeof(cl_uint), &add_M);
 		clSetKernelArg(kernel, 4, sizeof(cl_uint), &add_N);
 		clSetKernelArg(kernel, 5, sizeof(cl_uint), &add_K);
-		size_t global_work_size[2] = { add_N, add_M }; //если двумерный отсчет тредов - создаю массив из 2х size t. у нас сейчас одномерная индексация тредов, а всего тредов size_array = 3. в кадом треде вычисляется свой c[i]
+		size_t global_work_size[2] = { add_N, add_M }; //ГҐГ±Г«ГЁ Г¤ГўГіГ¬ГҐГ°Г­Г»Г© Г®ГІГ±Г·ГҐГІ ГІГ°ГҐГ¤Г®Гў - Г±Г®Г§Г¤Г Гѕ Г¬Г Г±Г±ГЁГў ГЁГ§ 2Гµ size t. Гі Г­Г Г± Г±ГҐГ©Г·Г Г± Г®Г¤Г­Г®Г¬ГҐГ°Г­Г Гї ГЁГ­Г¤ГҐГЄГ±Г Г¶ГЁГї ГІГ°ГҐГ¤Г®Гў, Г  ГўГ±ГҐГЈГ® ГІГ°ГҐГ¤Г®Гў size_array = 3. Гў ГЄГ Г¤Г®Г¬ ГІГ°ГҐГ¤ГҐ ГўГ»Г·ГЁГ±Г«ГїГҐГІГ±Гї Г±ГўГ®Г© c[i]
 		size_t local_work_size[2] = { TILE_SIZE, TILE_SIZE };
-		clEnqueueNDRangeKernel(queue, kernel, 2, NULL, &global_work_size[0], &local_work_size[0], 0, NULL, &kernel_event); //kernel ставится в очередь
-		clEnqueueReadBuffer(queue, c, CL_TRUE, 0, sizeof(cl_float) * add_M * add_N, c_val_exp, 0, NULL, &read_event); // Считываем с буфера результат. флаг CL_TRUE - тут блокирующая операция, т.к. нам нужно сначала дождаться результата суммирования, и потом вывести результат в буфер
+		clEnqueueNDRangeKernel(queue, kernel, 2, NULL, &global_work_size[0], &local_work_size[0], 0, NULL, &kernel_event); //kernel Г±ГІГ ГўГЁГІГ±Гї Гў Г®Г·ГҐГ°ГҐГ¤Гј
+		clEnqueueReadBuffer(queue, c, CL_TRUE, 0, sizeof(cl_float) * add_M * add_N, c_val_exp, 0, NULL, &read_event); // Г‘Г·ГЁГІГ»ГўГ ГҐГ¬ Г± ГЎГіГґГҐГ°Г  Г°ГҐГ§ГіГ«ГјГІГ ГІ. ГґГ«Г ГЈ CL_TRUE - ГІГіГІ ГЎГ«Г®ГЄГЁГ°ГіГѕГ№Г Гї Г®ГЇГҐГ°Г Г¶ГЁГї, ГІ.ГЄ. Г­Г Г¬ Г­ГіГ¦Г­Г® Г±Г­Г Г·Г Г«Г  Г¤Г®Г¦Г¤Г ГІГјГ±Гї Г°ГҐГ§ГіГ«ГјГІГ ГІГ  Г±ГіГ¬Г¬ГЁГ°Г®ГўГ Г­ГЁГї, ГЁ ГЇГ®ГІГ®Г¬ ГўГ»ГўГҐГ±ГІГЁ Г°ГҐГ§ГіГ«ГјГІГ ГІ Гў ГЎГіГґГҐГ°
 
 		cl_ulong write_start, write_end, kernel_start, kernel_end, read_start, read_end;
 
