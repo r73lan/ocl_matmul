@@ -1,4 +1,3 @@
-#define _CRT_SECURE_NO_WARNINGS
 #define CL_TARGET_OPENCL_VERSION 120
 #include <stdio.h>
 #include <stdlib.h>
@@ -43,9 +42,9 @@ bool ReadMatrix(cl_int size_X, cl_int size_Y, cl_float* matrix, FILE* file)
 
 std::vector<PlatformDevices> getAllPlatformsAndDevices() {
 	cl_uint num_platforms;
-	cl_int ret = clGetPlatformIDs(0, NULL, &num_platforms);
+	clGetPlatformIDs(0, NULL, &num_platforms);
 	std::vector<cl_platform_id> platform_ids(num_platforms);
-	ret = clGetPlatformIDs(num_platforms, platform_ids.data(), NULL);
+	clGetPlatformIDs(num_platforms, platform_ids.data(), NULL);
 
 	std::vector<PlatformDevices> allPlatforms;
 
@@ -147,7 +146,7 @@ void writeMatrixToFile(int N, int M, cl_float* matrix, const char* filename) {
 }
 
 int main(int argc, char* argv[]) {
-	// íàñòðîéêà âõîäíûõ äàííûõ
+	// настройка входных данных
 	std::map<std::string, std::string> args;
 	for (int i = 1; i < argc; i++) {
 		std::string arg = argv[i];
@@ -206,7 +205,7 @@ int main(int argc, char* argv[]) {
 			}
 		}
 		else if (arg == "--help") {
-			    printf("lab0.exe < --input file_name > \\ \n< --output file_name > \\ \n[ --device-type { dgpu | igpu | gpu | cpu | all } ]\n[--device-index index ]");
+			printf("lab0.exe < --input file_name > \\ \n< --output file_name > \\ \n[ --device-type { dgpu | igpu | gpu | cpu | all } ]\n[--device-index index ]");
 			return 0;
 		}
 		else {
@@ -216,7 +215,7 @@ int main(int argc, char* argv[]) {
 	}
 	//printMap(args);
 	const char* filename = args["input"].c_str();
-	//÷òåíèå ìàòðèö ñ ôàéëà
+	//чтение матриц с файла
 	FILE* file = fopen(filename, "r");
 	if (file == NULL) {
 		fprintf(stderr, "Cannot open the file: %s\n", filename);
@@ -254,7 +253,7 @@ int main(int argc, char* argv[]) {
 
 	fclose(file);
 
-	// Ïðîâåðêà çàãðóæåííûõ äàííûõ
+	// Проверка загруженных данных
 	/*printf("Matrix A:\n");
 	for (int i = 0; i < M; ++i) {
 		for (int j = 0; j < K; ++j) {
@@ -270,7 +269,7 @@ int main(int argc, char* argv[]) {
 		printf("\n");
 	}*/
 
-	//âûáîð äåâàéñà
+	//выбор девайса
 	const std::vector<PlatformDevices> PlatformsAndDevices = getAllPlatformsAndDevices();
 	cl_int index;
 	std::map<std::string, std::vector<cl_device_id>> listdevices = SelectDevice(PlatformsAndDevices);
@@ -423,9 +422,9 @@ int main(int argc, char* argv[]) {
 		data[size] = 0;
 		fclose(ptrFile);
 		//printf("%s", data);
-		cl_program prog = clCreateProgramWithSource(context, 1, (const char**)&data, &size, NULL); // ïîäãîòîâêà ê âû÷èñëåíèÿì. ýòî åñòü çàãðóçêà òåêñòà ñ .txt ôàéëà íà äåâàéñ, òóïî çàãðóçêà òåêñòà
-		cl_int build_result = clBuildProgram(prog, 1, &my_device, "", NULL, NULL); //ýòî óæå build. ñáîðêà çàãðóæåííîãî òåêñòà
-		if (build_result) { //âûâîäèì ëîã îøèáîê, åñëè íåóäà÷íàÿ ñáîðêà.åñëè óäàëèòü â .txt ";" ïîñëå êîìàíäû, òî îí óêàæåò íà îøèáêó
+		cl_program prog = clCreateProgramWithSource(context, 1, (const char**)&data, &size, NULL); // подготовка к вычислениям. это есть загрузка текста с .txt файла на девайс, тупо загрузка текста
+		cl_int build_result = clBuildProgram(prog, 1, &my_device, "", NULL, NULL); //это уже build. сборка загруженного текста
+		if (build_result) { //выводим лог ошибок, если неудачная сборка.если удалить в .txt ";" после команды, то он укажет на ошибку
 			size_t size_build_log;
 			clGetProgramBuildInfo(prog, my_device, CL_PROGRAM_BUILD_LOG, 0, NULL, &size_build_log);
 			std::vector <char> build_log_name(size_build_log);
@@ -433,18 +432,18 @@ int main(int argc, char* argv[]) {
 			printf("%s\n", build_log_name.data());
 		}
 		cl_event write_event, kernel_event, read_event;
-		clEnqueueWriteBuffer(queue, a, CL_FALSE, 0, sizeof(cl_float) * M * K, a_val, 0, NULL, &write_event); //2 ïåðåìåííûå ïåðåäàþ äàííûå ñ õîñòà â áóôåð
-		clEnqueueWriteBuffer(queue, b, CL_FALSE, 0, sizeof(cl_float) * K * N, b_val, 0, NULL, &write_event);  // CL_FALSE - íå áëîêèðóþùàÿ îïåðàöèÿ - âûïîëíÿåòñÿ áûñòðåå. ÿ ïðîñòðî êëàäó. åñëè CL_TRUE (ñëó÷àé íèæå ñ c), òî îïåðàöèÿ áëîêèðóþùàÿ - ìû æäåì ðåçóëüòàò äðóãèõ îïåðàöèé è òîëüêî ïîòîì ïåðåìåùàåì áóôåð
-		cl_kernel kernel = clCreateKernel(prog, "add", NULL); // ñîçäàåì ÿäðî. â òåîðèè ìîæåò áûòü íåñêîëüêî ÿäåð. íàïðèìåð, ó íàñ main òîæå ÿäðî. òóò ÿäðî íàçîäèòñÿ â ôóíêöèè add (ñì .txt ôàéë)
-		clSetKernelArg(kernel, 0, sizeof(cl_mem), &a); //0,1,2 - íîìåð àðãóìåíòà â ôóíêöèè .txt
+		clEnqueueWriteBuffer(queue, a, CL_FALSE, 0, sizeof(cl_float) * M * K, a_val, 0, NULL, &write_event); //2 переменные передаю данные с хоста в буфер
+		clEnqueueWriteBuffer(queue, b, CL_FALSE, 0, sizeof(cl_float) * K * N, b_val, 0, NULL, &write_event);  // CL_FALSE - не блокирующая операция - выполняется быстрее. я простро кладу. если CL_TRUE (случай ниже с c), то операция блокирующая - мы ждем результат других операций и только потом перемещаем буфер
+		cl_kernel kernel = clCreateKernel(prog, "add", NULL); // создаем ядро. в теории может быть несколько ядер. например, у нас main тоже ядро. тут ядро назодится в функции add (см .txt файл)
+		clSetKernelArg(kernel, 0, sizeof(cl_mem), &a); //0,1,2 - номер аргумента в функции .txt
 		clSetKernelArg(kernel, 1, sizeof(cl_mem), &b);
 		clSetKernelArg(kernel, 2, sizeof(cl_mem), &c);
 		clSetKernelArg(kernel, 3, sizeof(cl_uint), &M);
 		clSetKernelArg(kernel, 4, sizeof(cl_uint), &N);
 		clSetKernelArg(kernel, 5, sizeof(cl_uint), &K);
-		size_t global_work_size[2] = { N, M }; //åñëè äâóìåðíûé îòñ÷åò òðåäîâ - ñîçäàþ ìàññèâ èç 2õ size t. ó íàñ ñåé÷àñ îäíîìåðíàÿ èíäåêñàöèÿ òðåäîâ, à âñåãî òðåäîâ size_array = 3. â êàäîì òðåäå âû÷èñëÿåòñÿ ñâîé c[i]
-		clEnqueueNDRangeKernel(queue, kernel, 2, NULL, &global_work_size[0], NULL, 0, NULL, &kernel_event); //kernel ñòàâèòñÿ â î÷åðåäü
-		clEnqueueReadBuffer(queue, c, CL_TRUE, 0, sizeof(cl_float) * M * N, c_val, 0, NULL, &read_event); // Ñ÷èòûâàåì ñ áóôåðà ðåçóëüòàò. ôëàã CL_TRUE - òóò áëîêèðóþùàÿ îïåðàöèÿ, ò.ê. íàì íóæíî ñíà÷àëà äîæäàòüñÿ ðåçóëüòàòà ñóììèðîâàíèÿ, è ïîòîì âûâåñòè ðåçóëüòàò â áóôåð
+		size_t global_work_size[2] = { N, M }; //если двумерный отсчет тредов - создаю массив из 2х size t. у нас сейчас одномерная индексация тредов, а всего тредов size_array = 3. в кадом треде вычисляется свой c[i]
+		clEnqueueNDRangeKernel(queue, kernel, 2, NULL, &global_work_size[0], NULL, 0, NULL, &kernel_event); //kernel ставится в очередь
+		clEnqueueReadBuffer(queue, c, CL_TRUE, 0, sizeof(cl_float) * M * N, c_val, 0, NULL, &read_event); // Считываем с буфера результат. флаг CL_TRUE - тут блокирующая операция, т.к. нам нужно сначала дождаться результата суммирования, и потом вывести результат в буфер
 
 		cl_ulong write_start, write_end, kernel_start, kernel_end, read_start, read_end;
 
@@ -473,7 +472,7 @@ int main(int argc, char* argv[]) {
 	break;
 	case 2:
 	{
-		cl_int add_K = TILE_SIZE * (K / TILE_SIZE + 1), add_M = TILE_SIZE * (M / TILE_SIZE + 1), add_N = TILE_SIZE * (N / TILE_SIZE + 1);
+		size_t add_K = TILE_SIZE * (K / TILE_SIZE + 1), add_M = TILE_SIZE * (M / TILE_SIZE + 1), add_N = TILE_SIZE * (N / TILE_SIZE + 1);
 		cl_float* a_val_exp = (cl_float*)malloc(add_M * add_K * sizeof(cl_float));
 		cl_float* b_val_exp = (cl_float*)malloc(add_K * add_N * sizeof(cl_float));
 		cl_float* c_val_exp = (cl_float*)malloc(sizeof(cl_float) * add_M * add_N);
@@ -534,9 +533,9 @@ int main(int argc, char* argv[]) {
 		data[size] = 0;
 		fclose(ptrFile);
 		//printf("%s", data);
-		cl_program prog = clCreateProgramWithSource(context, 1, (const char**)&data, &size, NULL); // ïîäãîòîâêà ê âû÷èñëåíèÿì. ýòî åñòü çàãðóçêà òåêñòà ñ .txt ôàéëà íà äåâàéñ, òóïî çàãðóçêà òåêñòà
-		cl_int build_result = clBuildProgram(prog, 1, &my_device, "", NULL, NULL); //ýòî óæå build. ñáîðêà çàãðóæåííîãî òåêñòà
-		if (build_result) { //âûâîäèì ëîã îøèáîê, åñëè íåóäà÷íàÿ ñáîðêà.åñëè óäàëèòü â .txt ";" ïîñëå êîìàíäû, òî îí óêàæåò íà îøèáêó
+		cl_program prog = clCreateProgramWithSource(context, 1, (const char**)&data, &size, NULL); // подготовка к вычислениям. это есть загрузка текста с .txt файла на девайс, тупо загрузка текста
+		cl_int build_result = clBuildProgram(prog, 1, &my_device, "", NULL, NULL); //это уже build. сборка загруженного текста
+		if (build_result) { //выводим лог ошибок, если неудачная сборка.если удалить в .txt ";" после команды, то он укажет на ошибку
 			size_t size_build_log;
 			clGetProgramBuildInfo(prog, my_device, CL_PROGRAM_BUILD_LOG, 0, NULL, &size_build_log);
 			std::vector <char> build_log_name(size_build_log);
@@ -544,19 +543,19 @@ int main(int argc, char* argv[]) {
 			printf("%s\n", build_log_name.data());
 		}
 		cl_event write_event, kernel_event, read_event;
-		clEnqueueWriteBuffer(queue, a, CL_FALSE, 0, sizeof(cl_float) * add_M * add_K, a_val_exp, 0, NULL, &write_event); //2 ïåðåìåííûå ïåðåäàþ äàííûå ñ õîñòà â áóôåð
-		clEnqueueWriteBuffer(queue, b, CL_FALSE, 0, sizeof(cl_float) * add_K * add_N, b_val_exp, 0, NULL, &write_event);  // CL_FALSE - íå áëîêèðóþùàÿ îïåðàöèÿ - âûïîëíÿåòñÿ áûñòðåå. ÿ ïðîñòðî êëàäó. åñëè CL_TRUE (ñëó÷àé íèæå ñ c), òî îïåðàöèÿ áëîêèðóþùàÿ - ìû æäåì ðåçóëüòàò äðóãèõ îïåðàöèé è òîëüêî ïîòîì ïåðåìåùàåì áóôåð
-		cl_kernel kernel = clCreateKernel(prog, "add", NULL); // ñîçäàåì ÿäðî. â òåîðèè ìîæåò áûòü íåñêîëüêî ÿäåð. íàïðèìåð, ó íàñ main òîæå ÿäðî. òóò ÿäðî íàçîäèòñÿ â ôóíêöèè add (ñì .txt ôàéë)
-		clSetKernelArg(kernel, 0, sizeof(cl_mem), &a); //0,1,2 - íîìåð àðãóìåíòà â ôóíêöèè .txt
+		clEnqueueWriteBuffer(queue, a, CL_FALSE, 0, sizeof(cl_float) * add_M * add_K, a_val_exp, 0, NULL, &write_event); //2 переменные передаю данные с хоста в буфер
+		clEnqueueWriteBuffer(queue, b, CL_FALSE, 0, sizeof(cl_float) * add_K * add_N, b_val_exp, 0, NULL, &write_event);  // CL_FALSE - не блокирующая операция - выполняется быстрее. я простро кладу. если CL_TRUE (случай ниже с c), то операция блокирующая - мы ждем результат других операций и только потом перемещаем буфер
+		cl_kernel kernel = clCreateKernel(prog, "add", NULL); // создаем ядро. в теории может быть несколько ядер. например, у нас main тоже ядро. тут ядро назодится в функции add (см .txt файл)
+		clSetKernelArg(kernel, 0, sizeof(cl_mem), &a); //0,1,2 - номер аргумента в функции .txt
 		clSetKernelArg(kernel, 1, sizeof(cl_mem), &b);
 		clSetKernelArg(kernel, 2, sizeof(cl_mem), &c);
 		clSetKernelArg(kernel, 3, sizeof(cl_uint), &add_M);
 		clSetKernelArg(kernel, 4, sizeof(cl_uint), &add_N);
 		clSetKernelArg(kernel, 5, sizeof(cl_uint), &add_K);
-		size_t global_work_size[2] = { add_N, add_M }; //åñëè äâóìåðíûé îòñ÷åò òðåäîâ - ñîçäàþ ìàññèâ èç 2õ size t. ó íàñ ñåé÷àñ îäíîìåðíàÿ èíäåêñàöèÿ òðåäîâ, à âñåãî òðåäîâ size_array = 3. â êàäîì òðåäå âû÷èñëÿåòñÿ ñâîé c[i]
+		size_t global_work_size[2] = { add_N, add_M }; //если двумерный отсчет тредов - создаю массив из 2х size t. у нас сейчас одномерная индексация тредов, а всего тредов size_array = 3. в кадом треде вычисляется свой c[i]
 		size_t local_work_size[2] = { TILE_SIZE, TILE_SIZE };
-		clEnqueueNDRangeKernel(queue, kernel, 2, NULL, &global_work_size[0], &local_work_size[0], 0, NULL, &kernel_event); //kernel ñòàâèòñÿ â î÷åðåäü
-		clEnqueueReadBuffer(queue, c, CL_TRUE, 0, sizeof(cl_float) * add_M * add_N, c_val_exp, 0, NULL, &read_event); // Ñ÷èòûâàåì ñ áóôåðà ðåçóëüòàò. ôëàã CL_TRUE - òóò áëîêèðóþùàÿ îïåðàöèÿ, ò.ê. íàì íóæíî ñíà÷àëà äîæäàòüñÿ ðåçóëüòàòà ñóììèðîâàíèÿ, è ïîòîì âûâåñòè ðåçóëüòàò â áóôåð
+		clEnqueueNDRangeKernel(queue, kernel, 2, NULL, &global_work_size[0], &local_work_size[0], 0, NULL, &kernel_event); //kernel ставится в очередь
+		clEnqueueReadBuffer(queue, c, CL_TRUE, 0, sizeof(cl_float) * add_M * add_N, c_val_exp, 0, NULL, &read_event); // Считываем с буфера результат. флаг CL_TRUE - тут блокирующая операция, т.к. нам нужно сначала дождаться результата суммирования, и потом вывести результат в буфер
 
 		cl_ulong write_start, write_end, kernel_start, kernel_end, read_start, read_end;
 
