@@ -8,6 +8,7 @@
 #include <string>
 #include <map>
 #define TILE_SIZE 16
+#define THREAD_WORK 8
 
 struct DeviceInfo {
 	std::string deviceName;
@@ -424,7 +425,7 @@ int main(int argc, char* argv[]) {
 		//printf("%s", data);
 		cl_program prog = clCreateProgramWithSource(context, 1, (const char**)&data, &size, NULL); // подготовка к вычислениям. это есть загрузка текста с .txt файла на девайс, тупо загрузка текста
 		cl_int build_result = clBuildProgram(prog, 1, &my_device, "", NULL, NULL); //это уже build. сборка загруженного текста
-		if (build_result) { //выводим лог ошибок, если неудачная сборка.если удалить в .txt ";" после команды, то он укажет на ошибку
+		if (build_result) { //выводим лог ошибок, если неудачная сборка
 			size_t size_build_log;
 			clGetProgramBuildInfo(prog, my_device, CL_PROGRAM_BUILD_LOG, 0, NULL, &size_build_log);
 			std::vector <char> build_log_name(size_build_log);
@@ -572,6 +573,127 @@ int main(int argc, char* argv[]) {
 		double total_time = (double)((write_end - write_start) + (kernel_end - kernel_start) + (read_end - read_start));
 		printf("Device: %s\tPlatform: %s Time: %g\t%g\n", my_device_name.c_str(), my_platform_name.c_str(), kernel_time / 1e6, total_time / 1e6);
 		printf("LOCAL_WORK_SIZE [%i, %i]\nWI_WORK %i\n", TILE_SIZE, TILE_SIZE, 1);
+		for (int i = 0; i < M; i++) {
+			for (int j = 0; j < N; j++) {
+				c_val[i * N + j] = c_val_exp[i * add_N + j];
+			}
+		}
+		writeMatrixToFile(N, M, c_val, args["output"].c_str());
+		clReleaseKernel(kernel);
+		clReleaseProgram(prog);
+		clReleaseMemObject(a);
+		clReleaseMemObject(b);
+		clReleaseMemObject(c);
+		clReleaseCommandQueue(queue);
+		clReleaseContext(context);
+		free(data);
+		free(a_val_exp);
+		free(b_val_exp);
+		free(c_val_exp);
+	}
+	break;
+	case 3:
+	{
+		size_t add_K = TILE_SIZE * (K / TILE_SIZE + 1), add_M = TILE_SIZE * (M / TILE_SIZE + 1), add_N = TILE_SIZE * (N / TILE_SIZE + 1);
+		cl_float* a_val_exp = (cl_float*)malloc(add_M * add_K * sizeof(cl_float));
+		cl_float* b_val_exp = (cl_float*)malloc(add_K * add_N * sizeof(cl_float));
+		cl_float* c_val_exp = (cl_float*)malloc(sizeof(cl_float) * add_M * add_N);
+		if (a_val_exp == NULL || b_val_exp == NULL || c_val_exp == NULL) {
+			fprintf(stderr, "Memory allocation failed\n");
+			fclose(file);
+			free(a_val_exp);
+			free(b_val_exp);
+			return 1;
+		}
+		for (int i = 0; i < add_M; i++) {
+			for (int j = 0; j < add_K; j++) {
+				a_val_exp[i * add_K + j] = 0;
+			}
+		}
+		for (int i = 0; i < M; i++) {
+			for (int j = 0; j < K; j++) {
+				a_val_exp[i * add_K + j] = a_val[i * K + j];
+			}
+		}
+		for (int i = 0; i < add_K; i++) {
+			for (int j = 0; j < add_N; j++) {
+				b_val_exp[i * add_N + j] = 0;
+			}
+		}
+		for (int i = 0; i < K; i++) {
+			for (int j = 0; j < N; j++) {
+				b_val_exp[i * add_N + j] = b_val[i * N + j];
+			}
+		}
+		cl_context context = clCreateContext(NULL, 1, &my_device, NULL, NULL, NULL);
+		cl_command_queue queue = clCreateCommandQueue(context, my_device, CL_QUEUE_PROFILING_ENABLE, NULL);
+		cl_mem a = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(cl_float) * add_M * add_K, NULL, NULL);
+		cl_mem b = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(cl_float) * add_K * add_N, NULL, NULL);
+		cl_mem c = clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(cl_float) * add_M * add_N, NULL, NULL);
+		FILE* ptrFile = NULL;
+		ptrFile = fopen("matrix_vector.txt", "rb");
+		if (!ptrFile)
+		{
+			printf("File doesn't read\n");
+			return 1;
+		}
+		fseek(ptrFile, 0, SEEK_END);
+		size_t size = ftell(ptrFile);
+		rewind(ptrFile);
+		char* data = (char*)malloc(sizeof(char) * (size + 1));
+		if (data == NULL)
+		{
+			printf("Error at memory allocation\n");
+			return 1;
+		}
+		size_t result = fread(data, 1, size, ptrFile);
+		if (result != size)
+		{
+			printf("File doesnt read\n");
+			return 1;
+		}
+		data[size] = 0;
+		fclose(ptrFile);
+		//printf("%s", data);
+		cl_program prog = clCreateProgramWithSource(context, 1, (const char**)&data, &size, NULL); // подготовка к вычислениям. это есть загрузка текста с .txt файла на девайс, тупо загрузка текста
+		cl_int build_result = clBuildProgram(prog, 1, &my_device, "", NULL, NULL); //это уже build. сборка загруженного текста
+		if (build_result) { //выводим лог ошибок, если неудачная сборка.если удалить в .txt ";" после команды, то он укажет на ошибку
+			size_t size_build_log;
+			clGetProgramBuildInfo(prog, my_device, CL_PROGRAM_BUILD_LOG, 0, NULL, &size_build_log);
+			std::vector <char> build_log_name(size_build_log);
+			clGetProgramBuildInfo(prog, my_device, CL_PROGRAM_BUILD_LOG, size_build_log, build_log_name.data(), NULL);
+			printf("%s\n", build_log_name.data());
+		}
+		cl_event write_event, kernel_event, read_event;
+		clEnqueueWriteBuffer(queue, a, CL_FALSE, 0, sizeof(cl_float) * add_M * add_K, a_val_exp, 0, NULL, &write_event); //2 переменные передаю данные с хоста в буфер
+		clEnqueueWriteBuffer(queue, b, CL_FALSE, 0, sizeof(cl_float) * add_K * add_N, b_val_exp, 0, NULL, &write_event);  // CL_FALSE - не блокирующая операция - выполняется быстрее. я простро кладу. если CL_TRUE (случай ниже с c), то операция блокирующая - мы ждем результат других операций и только потом перемещаем буфер
+		cl_kernel kernel = clCreateKernel(prog, "add", NULL); // создаем ядро. в теории может быть несколько ядер. например, у нас main тоже ядро. тут ядро назодится в функции add (см .txt файл)
+		clSetKernelArg(kernel, 0, sizeof(cl_mem), &a); //0,1,2 - номер аргумента в функции .txt
+		clSetKernelArg(kernel, 1, sizeof(cl_mem), &b);
+		clSetKernelArg(kernel, 2, sizeof(cl_mem), &c);
+		clSetKernelArg(kernel, 3, sizeof(cl_uint), &add_M);
+		clSetKernelArg(kernel, 4, sizeof(cl_uint), &add_N);
+		clSetKernelArg(kernel, 5, sizeof(cl_uint), &add_K);
+		size_t global_work_size[2] = { add_N / THREAD_WORK, add_M }; //если двумерный отсчет тредов - создаю массив из 2х size t. у нас сейчас одномерная индексация тредов, а всего тредов size_array = 3. в кадом треде вычисляется свой c[i]
+		size_t local_work_size[2] = { TILE_SIZE / THREAD_WORK, TILE_SIZE };
+		clEnqueueNDRangeKernel(queue, kernel, 2, NULL, &global_work_size[0], &local_work_size[0], 0, NULL, &kernel_event); //kernel ставится в очередь
+		clEnqueueReadBuffer(queue, c, CL_TRUE, 0, sizeof(cl_float) * add_M * add_N, c_val_exp, 0, NULL, &read_event); // Считываем с буфера результат. флаг CL_TRUE - тут блокирующая операция, т.к. нам нужно сначала дождаться результата суммирования, и потом вывести результат в буфер
+
+		cl_ulong write_start, write_end, kernel_start, kernel_end, read_start, read_end;
+
+		clGetEventProfilingInfo(write_event, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &write_start, NULL);
+		clGetEventProfilingInfo(write_event, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &write_end, NULL);
+
+		clGetEventProfilingInfo(kernel_event, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &kernel_start, NULL);
+		clGetEventProfilingInfo(kernel_event, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &kernel_end, NULL);
+
+		clGetEventProfilingInfo(read_event, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &read_start, NULL);
+		clGetEventProfilingInfo(read_event, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &read_end, NULL);
+
+		double kernel_time = (double)(kernel_end - kernel_start);
+		double total_time = (double)((write_end - write_start) + (kernel_end - kernel_start) + (read_end - read_start));
+		printf("Device: %s\tPlatform: %s Time: %g\t%g\n", my_device_name.c_str(), my_platform_name.c_str(), kernel_time / 1e6, total_time / 1e6);
+		printf("LOCAL_WORK_SIZE [%i, %i]\nWI_WORK %i\n", TILE_SIZE, TILE_SIZE, THREAD_WORK);
 		for (int i = 0; i < M; i++) {
 			for (int j = 0; j < N; j++) {
 				c_val[i * N + j] = c_val_exp[i * add_N + j];
