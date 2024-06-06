@@ -17,4 +17,4 @@
 #ListSeparator=;
 #ForceSinglePass=False
 Method; ExecutionOrder; ThreadID; CallIndex; GlobalWorkSize; WorkGroupSize; Time; LocalMemSize; VGPRs; SGPRs; ScratchRegs; Wavefronts; VALUInsts; SALUInsts; VFetchInsts; SFetchInsts; VWriteInsts; LDSInsts; GDSInsts; VALUUtilization; VALUBusy; SALUBusy; FetchSize; WriteSize; L0CacheHit; L1CacheHit; L2CacheHit; MemUnitBusy; MemUnitStalled; WriteUnitStalled; LDSBankConflict
-add__k1_gfx10101; 1; 4032; 26; {   2048    2048       1}; NULL;        85,43296; 0; 15; 35; 0;    131072,00;     20496,00;      4101,00;         0,00;         5,00;         0,00;         0,00;         0,00;       100,00;        37,16;        12,39;   1743476,25;     16384,50;        49,99;         6,28;        94,39;        99,26;         0,00;         0,00;         0,00
+add__k1_gfx10101; 1; 1732; 26; {   2048    2048       1}; NULL;        85,30596; 0; 15; 35; 0;    131072,00;     20496,00;      4101,00;         0,00;         5,00;         0,00;         0,00;         0,00;       100,00;        37,13;        12,38;   1753775,13;     16384,50;        50,00;         6,60;        94,38;        99,26;         0,00;         0,00;         0,00
