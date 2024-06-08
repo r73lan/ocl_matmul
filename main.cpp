@@ -4,7 +4,6 @@
 #include <vector>
 #include <omp.h>
 #include <CL/cl.h>
-#include <iostream>
 #include <string>
 #include <map>
 #define TILE_SIZE 16
@@ -712,6 +711,7 @@ int main(int argc, char* argv[]) {
 		free(b_val_exp);
 		free(c_val_exp);
 	}
+
 	break;
 	default:
 		break;
