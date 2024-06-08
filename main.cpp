@@ -8,7 +8,7 @@
 #include <string>
 #include <map>
 #define TILE_SIZE 16
-#define THREAD_WORK 8
+#define THREAD_WORK 4
 
 struct DeviceInfo {
 	std::string deviceName;
@@ -631,7 +631,7 @@ int main(int argc, char* argv[]) {
 		cl_mem b = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(cl_float) * add_K * add_N, NULL, NULL);
 		cl_mem c = clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(cl_float) * add_M * add_N, NULL, NULL);
 		FILE* ptrFile = NULL;
-		ptrFile = fopen("matrix_vector.txt", "rb");
+		ptrFile = fopen("matrix_vector_wi4.txt", "rb");
 		if (!ptrFile)
 		{
 			printf("File doesn't read\n");
