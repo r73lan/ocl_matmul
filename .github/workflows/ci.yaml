@@ -94,6 +94,8 @@ jobs:
           echo $env:PATH
           echo $env:GITHUB_PATH
           "::endgroup::"
+
+          choco upgrade llvm
                  
       - name: build
         id: build
@@ -394,4 +396,3 @@ jobs:
       - name: cleanup
         id: cleanup
         run: Remove-Item -Recurse -Force -Path ${{github.workspace}} -ErrorAction SilentlyContinue
-      
