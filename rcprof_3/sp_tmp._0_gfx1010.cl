@@ -3,7 +3,7 @@
 */
 
 #define TILE_SIZE 16
-#define THREAD_WORK 8
+#define THREAD_WORK 4
 #define SIZE_VEC (TILE_SIZE / THREAD_WORK + 1)
 
 kernel void add(global float *a, global float *b, global float *c,
@@ -15,18 +15,18 @@ kernel void add(global float *a, global float *b, global float *c,
     int local_j = get_local_id(1);
     local union {
         float mat[TILE_SIZE][TILE_SIZE + THREAD_WORK];
-        float8 vec[TILE_SIZE][SIZE_VEC];
+        float4 vec[TILE_SIZE][SIZE_VEC];
     } tileA;
-    local float8 tileB[TILE_SIZE][SIZE_VEC]; 
-    float8 sum = 0.0;
+    local float4 tileB[TILE_SIZE][SIZE_VEC]; 
+    float4 sum = 0.0;
     for (int tileK = 0; tileK * TILE_SIZE < K; ++tileK) {
-        tileA.vec[local_j][local_i] = vload8(0, &a[j * K + tileK * TILE_SIZE + local_i * THREAD_WORK]);
-        tileB[local_j][local_i] = vload8(0, &b[(tileK * TILE_SIZE + local_j) * N + i * THREAD_WORK]);
+        tileA.vec[local_j][local_i] = vload4(0, &a[j * K + tileK * TILE_SIZE + local_i * THREAD_WORK]);
+        tileB[local_j][local_i] = vload4(0, &b[(tileK * TILE_SIZE + local_j) * N + i * THREAD_WORK]);
         barrier(CLK_LOCAL_MEM_FENCE);
         for (int k = 0; k < TILE_SIZE; ++k) {
             sum += tileA.mat[local_j][k] * tileB[k][local_i];
         }
         barrier(CLK_LOCAL_MEM_FENCE);
     }
-    vstore8(sum, 0, &c[j * N + i * THREAD_WORK]);
+    vstore4(sum, 0, &c[j * N + i * THREAD_WORK]);
 }
