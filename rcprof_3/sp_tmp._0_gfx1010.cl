@@ -4,27 +4,32 @@
 
 #define TILE_SIZE 16
 #define THREAD_WORK 4
-#define SIZE_VEC (TILE_SIZE / THREAD_WORK + 1)
+#define SIZE_VEC (TILE_SIZE / THREAD_WORK)
 
 kernel void add(global float *a, global float *b, global float *c,
                                       unsigned int M, unsigned int N, unsigned int K)
 {
-    int i = get_global_id(0);
-    int j = get_global_id(1);
-    int local_i = get_local_id(0);
-    int local_j = get_local_id(1);
+    uint i = get_global_id(0);
+    uint j = get_global_id(1);
+    uint local_i = get_local_id(0);
+    uint local_j = get_local_id(1);
+    uint group_i = get_group_id(0);
+    uint group_j = get_group_id(1);
+
     local union {
-        float mat[TILE_SIZE][TILE_SIZE + THREAD_WORK];
+        float mat[TILE_SIZE][TILE_SIZE];
         float4 vec[TILE_SIZE][SIZE_VEC];
     } tileA;
     local float4 tileB[TILE_SIZE][SIZE_VEC]; 
     float4 sum = 0.0;
     for (int tileK = 0; tileK * TILE_SIZE < K; ++tileK) {
-        tileA.vec[local_j][local_i] = vload4(0, &a[j * K + tileK * TILE_SIZE + local_i * THREAD_WORK]);
+        //tileA.vec[local_j][local_i] = vload4(0, &a[j * N + tileK * TILE_SIZE + local_i * THREAD_WORK]);
+        //tileA.vec[local_j][local_i] = vload4(0, &a[(group_j * TILE_SIZE + local_j) * N + tileK * TILE_SIZE + local_i * THREAD_WORK]);
+        tileA.vec[local_j][local_i] = vload4(0, &a[(local_j + tileK * TILE_SIZE) * M  + local_i * THREAD_WORK + group_j * TILE_SIZE]);
         tileB[local_j][local_i] = vload4(0, &b[(tileK * TILE_SIZE + local_j) * N + i * THREAD_WORK]);
         barrier(CLK_LOCAL_MEM_FENCE);
-        for (int k = 0; k < TILE_SIZE; ++k) {
-            sum += tileA.mat[local_j][k] * tileB[k][local_i];
+        for (int k = 0; k < TILE_SIZE; ++k) { 
+            sum += tileA.mat[k][local_j] * tileB[k][local_i];
         }
         barrier(CLK_LOCAL_MEM_FENCE);
     }
