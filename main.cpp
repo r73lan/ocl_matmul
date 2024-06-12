@@ -784,7 +784,7 @@ int main(int argc, char* argv[]) {
 		//MatMul_omp_t(a_t_val_exp, b_val_exp, C_host, add_M, add_N, add_K);
 		//writeMatrixToFile(add_N, add_M, c_val_exp, "expanded_device.txt");
 		//writeMatrixToFile(add_N, add_M, C_host, "transhost.txt");
-		//writeMatrixToFile(N, M, c_val, args["output"].c_str());
+		writeMatrixToFile(N, M, c_val, args["output"].c_str());
 		//Compare(C_host, c_val_exp, add_M, add_N);
 		clReleaseKernel(kernel);
 		clReleaseProgram(prog);
