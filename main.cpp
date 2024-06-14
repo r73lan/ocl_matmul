@@ -712,7 +712,7 @@ int main(int argc, char* argv[]) {
 		cl_mem b = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(cl_float) * add_K * add_N, NULL, NULL);
 		cl_mem c = clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(cl_float) * add_M * add_N, NULL, NULL);
 		FILE* ptrFile = NULL;
-		ptrFile = fopen("matrix_vector_wi4_mod.txt", "rb");
+		ptrFile = fopen("matrix_vector_wi4_mod_v_2_2.txt", "rb");
 		if (!ptrFile)
 		{
 			printf("File doesn't read\n");
@@ -755,8 +755,8 @@ int main(int argc, char* argv[]) {
 		clSetKernelArg(kernel, 3, sizeof(cl_uint), &add_M);
 		clSetKernelArg(kernel, 4, sizeof(cl_uint), &add_N);
 		clSetKernelArg(kernel, 5, sizeof(cl_uint), &add_K);
-		size_t global_work_size[2] = { add_N / THREAD_WORK, add_M }; //���� ��������� ������ ������ - ������ ������ �� 2� size t. � ��� ������ ���������� ���������� ������, � ����� ������ size_array = 3. � ����� ����� ����������� ���� c[i]
-		size_t local_work_size[2] = { TILE_SIZE / THREAD_WORK, TILE_SIZE };
+		size_t global_work_size[2] = { add_N / THREAD_WORK, add_M / 2 }; //���� ��������� ������ ������ - ������ ������ �� 2� size t. � ��� ������ ���������� ���������� ������, � ����� ������ size_array = 3. � ����� ����� ����������� ���� c[i]
+		size_t local_work_size[2] = { TILE_SIZE / THREAD_WORK, TILE_SIZE / 2 };
 		clEnqueueNDRangeKernel(queue, kernel, 2, NULL, &global_work_size[0], &local_work_size[0], 0, NULL, &kernel_event); //kernel �������� � �������
 		clEnqueueReadBuffer(queue, c, CL_TRUE, 0, sizeof(cl_float) * add_M * add_N, c_val_exp, 0, NULL, &read_event); // ��������� � ������ ���������. ���� CL_TRUE - ��� ����������� ��������, �.�. ��� ����� ������� ��������� ���������� ������������, � ����� ������� ��������� � �����
 
