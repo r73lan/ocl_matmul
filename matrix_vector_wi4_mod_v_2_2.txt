@@ -1,0 +1,59 @@
+#define TILE_SIZE 16
+#define THREAD_WORK_X 4
+#define THREAD_WORK_Y 2
+#define SIZE_VEC (TILE_SIZE / THREAD_WORK_X)
+
+kernel void add(global float *a, global float *b, global float *c,
+                                      unsigned int M, unsigned int N, unsigned int K)
+{
+    uint i = get_global_id(0);
+    uint j = get_global_id(1);
+    uint local_i = get_local_id(0);
+    uint local_j = get_local_id(1);
+    uint group_i = get_group_id(0);
+    uint group_j = get_group_id(1);
+
+    local union {
+        float mat[TILE_SIZE][TILE_SIZE];
+        float4 vec[TILE_SIZE][SIZE_VEC];
+    } tileA;
+    local float4 tileB[TILE_SIZE][SIZE_VEC]; 
+    float4 sum[2] = {0.0, 0.0};
+    for (int tileK = 0; tileK * TILE_SIZE < K; ++tileK) {
+        //tileA.vec[local_j][local_i] = vload4(0, &a[j * N + tileK * TILE_SIZE + local_i * THREAD_WORK_X]);
+        //tileA.vec[local_j][local_i] = vload4(0, &a[(group_j * TILE_SIZE + local_j) * N + tileK * TILE_SIZE + local_i * THREAD_WORK_X]);
+        tileA.vec[local_j* THREAD_WORK_Y][local_i] = vload4(0, &a[(local_j * THREAD_WORK_Y + tileK * TILE_SIZE) * M  + local_i * THREAD_WORK_X + group_j * TILE_SIZE]);
+        tileA.vec[local_j* THREAD_WORK_Y+1][local_i] = vload4(0, &a[(local_j* THREAD_WORK_Y+1 + tileK * TILE_SIZE) * M  + local_i * THREAD_WORK_X + group_j * TILE_SIZE]);
+        tileB[local_j* THREAD_WORK_Y][local_i] = vload4(0, &b[(tileK * TILE_SIZE + local_j* THREAD_WORK_Y) * N + i * THREAD_WORK_X]);
+        tileB[local_j* THREAD_WORK_Y+1][local_i] = vload4(0, &b[(tileK * TILE_SIZE + local_j* THREAD_WORK_Y+1) * N + i * THREAD_WORK_X]);
+        barrier(CLK_LOCAL_MEM_FENCE);
+
+        /*printf("(%i, %i) - %f", local_j * THREAD_WORK_Y + tileK * TILE_SIZE, local_i * THREAD_WORK_X + group_j * TILE_SIZE, tileA.vec[local_j* THREAD_WORK_Y][local_i].x);
+        printf("(%i, %i) - %f", local_j * THREAD_WORK_Y + tileK * TILE_SIZE, local_i * THREAD_WORK_X + group_j * TILE_SIZE +1, tileA.vec[local_j* THREAD_WORK_Y][local_i].y);
+        printf("(%i, %i) - %f", local_j * THREAD_WORK_Y + tileK * TILE_SIZE, local_i * THREAD_WORK_X + group_j * TILE_SIZE+2, tileA.vec[local_j* THREAD_WORK_Y][local_i].z);
+        printf("(%i, %i) - %f", local_j * THREAD_WORK_Y + tileK * TILE_SIZE, local_i * THREAD_WORK_X + group_j * TILE_SIZE+3, tileA.vec[local_j* THREAD_WORK_Y][local_i].w);
+        printf("(%i, %i) - %f", local_j* THREAD_WORK_Y+1 + tileK * TILE_SIZE, local_i * THREAD_WORK_X + group_j * TILE_SIZE, tileA.vec[local_j* THREAD_WORK_Y+1][local_i].x);
+        printf("(%i, %i) - %f", local_j* THREAD_WORK_Y+1 + tileK * TILE_SIZE, local_i * THREAD_WORK_X + group_j * TILE_SIZE+1, tileA.vec[local_j* THREAD_WORK_Y+1][local_i].y);
+        printf("(%i, %i) - %f", local_j* THREAD_WORK_Y+1 + tileK * TILE_SIZE, local_i * THREAD_WORK_X + group_j * TILE_SIZE+2, tileA.vec[local_j* THREAD_WORK_Y+1][local_i].z);
+        printf("(%i, %i) - %f", local_j* THREAD_WORK_Y+1 + tileK * TILE_SIZE, local_i * THREAD_WORK_X + group_j * TILE_SIZE+3, tileA.vec[local_j* THREAD_WORK_Y+1][local_i].w);*/
+
+        /*printf("(%i, %i) - %f", tileK * TILE_SIZE + local_j* THREAD_WORK_Y, 4*i, tileB[local_j* THREAD_WORK_Y][local_i].x);
+        printf("(%i, %i) - %f", tileK * TILE_SIZE + local_j* THREAD_WORK_Y, 4*i+1, tileB[local_j* THREAD_WORK_Y][local_i].y);
+        printf("(%i, %i) - %f", tileK * TILE_SIZE + local_j* THREAD_WORK_Y, 4*i+2, tileB[local_j* THREAD_WORK_Y][local_i].z);
+        printf("(%i, %i) - %f", tileK * TILE_SIZE + local_j* THREAD_WORK_Y, 4*i+3, tileB[local_j* THREAD_WORK_Y][local_i].w);
+
+        printf("(%i, %i) - %f", tileK * TILE_SIZE + local_j* THREAD_WORK_Y+1, 4*i, tileB[local_j* THREAD_WORK_Y+1][local_i].x);
+        printf("(%i, %i) - %f", tileK * TILE_SIZE + local_j* THREAD_WORK_Y+1, 4*i+1, tileB[local_j* THREAD_WORK_Y+1][local_i].y);
+        printf("(%i, %i) - %f", tileK * TILE_SIZE + local_j* THREAD_WORK_Y+1, 4*i+2, tileB[local_j* THREAD_WORK_Y+1][local_i].z);
+        printf("(%i, %i) - %f", tileK * TILE_SIZE + local_j* THREAD_WORK_Y+1, 4*i+3, tileB[local_j* THREAD_WORK_Y+1][local_i].w);*/
+
+        for (int k = 0; k < TILE_SIZE; ++k) { 
+            float2 subtileA = vload2(0, &(tileA.mat[k][2*local_j]));
+            sum[0] += subtileA.x * tileB[k][local_i];
+            sum[1] += subtileA.y * tileB[k][local_i];
+        }
+        barrier(CLK_LOCAL_MEM_FENCE);
+    }
+    vstore4(sum[0], 0, &c[j*THREAD_WORK_Y * N + i * THREAD_WORK_X]);
+    vstore4(sum[1], 0, &c[(j*THREAD_WORK_Y + 1) * N + i * THREAD_WORK_X]);
+}
