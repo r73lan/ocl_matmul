@@ -148,8 +148,8 @@ void Transpose(float* Inp_Matrix, float* Out_Matrix, cl_uint Inp_size_X, cl_uint
 	}
 }
 
-void releaseOpenCLResources(cl_kernel* kernel, cl_mem* a, cl_mem* b, cl_mem* c, cl_program* program, 
-									cl_command_queue* queue, cl_context* context)
+void releaseOpenCLResources(cl_kernel* kernel, cl_mem* a, cl_mem* b, cl_mem* c, cl_program* program,
+	cl_command_queue* queue, cl_context* context)
 {
 	if (kernel != NULL && *kernel != NULL) {
 		clReleaseKernel(*kernel);
@@ -478,7 +478,7 @@ int main(int argc, char* argv[]) {
 			freeMatrixMemory(a_val, b_val, c_val);
 			return 1;
 		}
-		cl_event write_event = NULL, kernel_event = NULL, read_event = NULL;
+		cl_event write_event_1 = NULL, kernel_event = NULL, read_event = NULL, write_event_2 = NULL;
 		if (realization == 1) {
 			cl_mem a = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(cl_float) * M * K, NULL, NULL);
 			cl_mem b = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(cl_float) * K * N, NULL, NULL);
@@ -489,8 +489,8 @@ int main(int argc, char* argv[]) {
 				freeMatrixMemory(a_val, b_val, c_val);
 				return 1;
 			}
-			clEnqueueWriteBuffer(queue, a, CL_FALSE, 0, sizeof(cl_float) * M * K, a_val, 0, NULL, &write_event);
-			clEnqueueWriteBuffer(queue, b, CL_FALSE, 0, sizeof(cl_float) * K * N, b_val, 0, NULL, &write_event);
+			clEnqueueWriteBuffer(queue, a, CL_FALSE, 0, sizeof(cl_float) * M * K, a_val, 0, NULL, &write_event_1);
+			clEnqueueWriteBuffer(queue, b, CL_FALSE, 0, sizeof(cl_float) * K * N, b_val, 0, NULL, &write_event_2);
 			cl_kernel kernel = clCreateKernel(prog, kernels_name[0].c_str(), NULL);
 			if (kernel == NULL) {
 				printf("Error: kernel %s doesnt create\n", kernels_name[0].c_str());
@@ -515,10 +515,10 @@ int main(int argc, char* argv[]) {
 			cl_uint add_K = K, add_N = N, add_M = M;
 			cl_float* a_t_val_exp = NULL;
 			if (realization == 2) {
-				cl_uint add_K = LOC_SIZE_r2 * (K / LOC_SIZE_r2 + 1), add_M = LOC_SIZE_r2 * (M / LOC_SIZE_r2 + 1), add_N = LOC_SIZE_r2 * (N / LOC_SIZE_r2 + 1);
+				add_K = LOC_SIZE_r2 * (K / LOC_SIZE_r2 + 1), add_M = LOC_SIZE_r2 * (M / LOC_SIZE_r2 + 1), add_N = LOC_SIZE_r2 * (N / LOC_SIZE_r2 + 1);
 			}
 			if (realization == 3) {
-				cl_uint add_K = LOC_SIZE_r3 * (K / LOC_SIZE_r3 + 1), add_M = LOC_SIZE_r3 * (M / LOC_SIZE_r3 + 1), add_N = LOC_SIZE_r3 * (N / LOC_SIZE_r3 + 1);
+				add_K = LOC_SIZE_r3 * (K / LOC_SIZE_r3 + 1), add_M = LOC_SIZE_r3 * (M / LOC_SIZE_r3 + 1), add_N = LOC_SIZE_r3 * (N / LOC_SIZE_r3 + 1);
 				a_t_val_exp = (cl_float*)malloc(add_M * add_K * sizeof(cl_float));
 				if (a_t_val_exp == NULL) {
 					printf("Memory allocation error\n");
@@ -571,14 +571,14 @@ int main(int argc, char* argv[]) {
 			}
 			if (realization == 2)
 			{
-				clEnqueueWriteBuffer(queue, a_exp, CL_FALSE, 0, sizeof(cl_float) * add_M * add_K, a_val_exp, 0, NULL, &write_event);
+				clEnqueueWriteBuffer(queue, a_exp, CL_FALSE, 0, sizeof(cl_float) * add_M * add_K, a_val_exp, 0, NULL, &write_event_1);
 			}
 			if (realization == 3)
 			{
 				Transpose(a_val_exp, a_t_val_exp, add_K, add_M);
-				clEnqueueWriteBuffer(queue, a_exp, CL_FALSE, 0, sizeof(cl_float) * add_M * add_K, a_t_val_exp, 0, NULL, &write_event);
+				clEnqueueWriteBuffer(queue, a_exp, CL_FALSE, 0, sizeof(cl_float) * add_M * add_K, a_t_val_exp, 0, NULL, &write_event_1);
 			}
-			clEnqueueWriteBuffer(queue, b_exp, CL_FALSE, 0, sizeof(cl_float) * add_K * add_N, b_val_exp, 0, NULL, &write_event);
+			clEnqueueWriteBuffer(queue, b_exp, CL_FALSE, 0, sizeof(cl_float) * add_K * add_N, b_val_exp, 0, NULL, &write_event_2);
 			cl_kernel kernel = clCreateKernel(prog, kernels_name[realization - 1].c_str(), NULL);
 			if (kernel == NULL) {
 				printf("Error: kernel %s doesnt create\n", kernels_name[realization - 1].c_str());
@@ -617,24 +617,25 @@ int main(int argc, char* argv[]) {
 			writeMatrixToFile(N, M, c_val, args["output"].c_str());
 			free(a_t_val_exp);
 			freeMatrixMemory(a_val_exp, b_val_exp, c_val_exp);
-			releaseOpenCLResources(&kernel, &a_exp, &b_exp, &c_exp, &prog, &queue, &context);
 		}
-		cl_ulong write_start, write_end, kernel_start, kernel_end, read_start, read_end;
-		clGetEventProfilingInfo(write_event, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &write_start, NULL);
-		clGetEventProfilingInfo(write_event, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &write_end, NULL);
+		cl_ulong write_start_1, write_end_1, write_start_2, write_end_2, kernel_start, kernel_end, read_start, read_end;
+		clGetEventProfilingInfo(write_event_1, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &write_start_1, NULL);
+		clGetEventProfilingInfo(write_event_1, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &write_end_1, NULL);
+		clGetEventProfilingInfo(write_event_2, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &write_start_2, NULL);
+		clGetEventProfilingInfo(write_event_2, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &write_end_2, NULL);
 		clGetEventProfilingInfo(kernel_event, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &kernel_start, NULL);
 		clGetEventProfilingInfo(kernel_event, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &kernel_end, NULL);
 		clGetEventProfilingInfo(read_event, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &read_start, NULL);
 		clGetEventProfilingInfo(read_event, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &read_end, NULL);
 		double kernel_time = (double)(kernel_end - kernel_start);
-		double total_time = (double)((write_end - write_start) + (kernel_end - kernel_start) + (read_end - read_start));
+		double total_time = (double)((write_end_1 + write_end_2 - write_start_1 - write_start_2) + (kernel_end - kernel_start) + (read_end - read_start));
 		printf("Device: %s\tPlatform: %s Time: %g\t%g\n", my_device_name.c_str(), my_platform_name.c_str(), kernel_time / 1e6, total_time / 1e6);
 		if (realization == 2) {
 			printf("LOCAL_WORK_SIZE [%i, %i]\nWI_WORK %i\n", LOC_SIZE_r2, LOC_SIZE_r2, 1);
 		}
 		if (realization == 3) {
-			printf("LOCAL_WORK_SIZE [%i, %i]\nWI_WORK %i\n", LOC_SIZE_r3, LOC_SIZE_r3, THREAD_WORK_X* THREAD_WORK_Y);
+			printf("LOCAL_WORK_SIZE [%i, %i]\nWI_WORK %i\n", LOC_SIZE_r3 / THREAD_WORK_X, LOC_SIZE_r3 / THREAD_WORK_Y, THREAD_WORK_X * THREAD_WORK_Y);
 		}
-	freeMatrixMemory(a_val, b_val, c_val);
+		freeMatrixMemory(a_val, b_val, c_val);
 	}
 }
