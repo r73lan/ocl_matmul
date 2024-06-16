@@ -52,7 +52,6 @@ kernel void localmem_vector_r3(global float *A, global float *B, global float *C
     uint j = get_global_id(1);
     uint local_i = get_local_id(0);
     uint local_j = get_local_id(1);
-    //uint group_i = get_group_id(0);
     uint group_j = get_group_id(1);
 
     local union {
