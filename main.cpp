@@ -6,48 +6,10 @@
 #include <CL/cl.h>
 #include <string>
 #include <map>
-#define TILE_SIZE 16
-#define THREAD_WORK 4
-
-void Compare(float* C_host, float* c_val, cl_uint M, cl_uint N) {
-	cl_float min = std::numeric_limits<cl_float>::infinity();
-	char num_threads = 12;
-#pragma omp parallel num_threads(num_threads)
-	{
-		cl_float local_min = std::numeric_limits<cl_float>::infinity();
-#pragma omp for 
-		for (int i = 0; i < M; ++i)
-		{
-			for (int j = 0; j < N; ++j)
-			{
-				if (C_host[i * N + j] < local_min) {
-					local_min = c_val[i * N + j];
-				}
-			}
-		}
-#pragma omp critical
-		{
-			if (local_min <= min) {
-				min = local_min;
-			}
-		}
-	}
-	if (min >= 1.)
-		min = 1.;
-#pragma omp parallel for num_threads(12)
-	for (int i = 0; i < M; ++i)
-	{
-		for (int j = 0; j < N; ++j)
-		{
-			if (fabs(C_host[i * N + j] - c_val[i * N + j]) > std::numeric_limits<cl_float>::epsilon() * min)
-			{
-				printf("Not equal elements in matrixs\n");
-			}
-		}
-	}
-	printf("If you dont see text above that elements not equal, matrixes are equal! :)\n");
-}
-
+#define LOC_SIZE_r2 16
+#define LOC_SIZE_r3 30
+#define THREAD_WORK_X 2
+#define THREAD_WORK_Y 3
 
 struct DeviceInfo {
 	std::string deviceName;
@@ -62,16 +24,11 @@ struct PlatformDevices {
 	std::vector<DeviceInfo> devices;
 };
 
-void printMap(const std::map<std::string, std::string>& map) {
-	for (const auto& pair : map) {
-		printf("%s: %s\n", pair.first.c_str(), pair.second.c_str());
-	}
-}
-
 bool ReadMatrix(cl_int size_X, cl_int size_Y, cl_float* matrix, FILE* file)
 {
 	for (int i = 0; i < size_X * size_Y; i++) {
 		if (fscanf(file, "%f", &matrix[i]) != 1) {
+			printf("Error in reading file");
 			return 1;
 		}
 	}
@@ -148,24 +105,6 @@ std::map<std::string, std::vector<cl_device_id>> SelectDevice(const std::vector<
 	return listdevices;
 }
 
-void MatMul_omp_t(float* A_T, float* B, float* C, cl_uint M, cl_uint N, cl_uint K) {
-	volatile double tstart = omp_get_wtime();
-#pragma omp parallel for num_threads(12)
-	for (int i = 0; i < M; ++i)
-	{
-		for (int j = 0; j < N; ++j)
-		{
-			C[i * N + j] = 0;
-			for (int k = 0; k < K; ++k)
-			{
-				C[i * N + j] += A_T[i + k * M] * B[k * N + j];
-			}
-		}
-	}
-	volatile double tend = omp_get_wtime();
-	printf("Time: %g\n", (double)((tend - tstart) * 1000));
-}
-
 void MatMul_omp(float* A, float* B, float* C, cl_uint M, cl_uint N, cl_uint K) {
 	volatile double tstart = omp_get_wtime();
 #pragma omp parallel for num_threads(12)
@@ -209,8 +148,53 @@ void Transpose(float* Inp_Matrix, float* Out_Matrix, cl_uint Inp_size_X, cl_uint
 	}
 }
 
+void releaseOpenCLResources(cl_kernel* kernel, cl_mem* a, cl_mem* b, cl_mem* c, cl_program* program, 
+									cl_command_queue* queue, cl_context* context)
+{
+	if (kernel != NULL && *kernel != NULL) {
+		clReleaseKernel(*kernel);
+		*kernel = NULL;
+	}
+	if (a != NULL && *a != NULL) {
+		clReleaseMemObject(*a);
+		*a = NULL;
+	}
+	if (b != NULL && *b != NULL) {
+		clReleaseMemObject(*b);
+		*b = NULL;
+	}
+	if (c != NULL && *c != NULL) {
+		clReleaseMemObject(*c);
+		*c = NULL;
+	}
+	if (program != NULL && *program != NULL) {
+		clReleaseProgram(*program);
+		*program = NULL;
+	}
+	if (queue != NULL && *queue != NULL) {
+		clReleaseCommandQueue(*queue);
+		*queue = NULL;
+	}
+	if (context != NULL && *context != NULL) {
+		clReleaseContext(*context);
+		*context = NULL;
+	}
+}
+
+void freeMatrixMemory(float* a, float* b, float* c) {
+	if (a != NULL) {
+		free(a);
+	}
+	if (b != NULL) {
+		free(b);
+	}
+	if (c != NULL) {
+		free(c);
+	}
+}
+
+
 int main(int argc, char* argv[]) {
-	// ��������� ������� ������
 	std::map<std::string, std::string> args;
 	for (int i = 1; i < argc; i++) {
 		std::string arg = argv[i];
@@ -277,9 +261,7 @@ int main(int argc, char* argv[]) {
 			return 1;
 		}
 	}
-	//printMap(args);
 	const char* filename = args["input"].c_str();
-	//������ ������ � �����
 	FILE* file = fopen(filename, "r");
 	if (file == NULL) {
 		fprintf(stderr, "Cannot open the file: %s\n", filename);
@@ -296,48 +278,27 @@ int main(int argc, char* argv[]) {
 	if (a_val == NULL || b_val == NULL) {
 		printf("Memory allocation failed\n");
 		fclose(file);
-		free(a_val);
-		free(b_val);
+		freeMatrixMemory(a_val, b_val, NULL);
 		return 1;
 	}
 	if (ReadMatrix(M, K, a_val, file)) {
 		fclose(file);
-		free(a_val);
-		free(b_val);
+		freeMatrixMemory(a_val, b_val, NULL);
 		printf("Failed to read data for matrix A\n");
 		return 1;
 	}
 	if (ReadMatrix(K, N, b_val, file)) {
 		fclose(file);
-		free(a_val);
-		free(b_val);
+		freeMatrixMemory(a_val, b_val, NULL);
 		printf("Failed to read data for matrix B\n");
 		return 1;
 	}
-
 	fclose(file);
 
-	// �������� ����������� ������
-	/*printf("Matrix A:\n");
-	for (int i = 0; i < M; ++i) {
-		for (int j = 0; j < K; ++j) {
-			printf("%f ", a_val[i * K + j]);
-		}
-		printf("\n");
-	}
-	printf("Matrix B:\n");
-	for (int i = 0; i < K; ++i) {
-		for (int j = 0; j < N; ++j) {
-			printf("%f ", b_val[i * N + j]);
-		}
-		printf("\n");
-	}*/
-
-	//����� �������
 	const std::vector<PlatformDevices> PlatformsAndDevices = getAllPlatformsAndDevices();
 	cl_int index;
 	std::map<std::string, std::vector<cl_device_id>> listdevices = SelectDevice(PlatformsAndDevices);
-	cl_device_id my_device;
+	cl_device_id my_device = NULL;
 	std::string my_device_name, my_platform_name;
 
 	if (args.count("device-index") > 0) {
@@ -354,9 +315,7 @@ int main(int argc, char* argv[]) {
 				index = 0;
 			}
 			if (listdevices["cpu"].size() == 0) {
-				my_device = NULL;
-				free(a_val);
-				free(b_val);
+				freeMatrixMemory(a_val, b_val, NULL);
 				printf("Device to your requirements doesnt exist\n");
 				return 1;
 			}
@@ -371,8 +330,7 @@ int main(int argc, char* argv[]) {
 			}
 			if (listdevices["dgpu"].size() == 0) {
 				my_device = NULL;
-				free(a_val);
-				free(b_val);
+				freeMatrixMemory(a_val, b_val, NULL);
 				printf("Device to your requirements doesnt exist\n");
 				return 1;
 			}
@@ -385,8 +343,7 @@ int main(int argc, char* argv[]) {
 			}
 			if (listdevices["dgpu"].size() == 0) {
 				my_device = NULL;
-				free(a_val);
-				free(b_val);
+				freeMatrixMemory(a_val, b_val, NULL);
 				printf("Device to your requirements doesnt exist\n");
 				return 1;
 			}
@@ -398,8 +355,7 @@ int main(int argc, char* argv[]) {
 			}
 			if (listdevices["igpu"].size() == 0) {
 				my_device = NULL;
-				free(a_val);
-				free(b_val);
+				freeMatrixMemory(a_val, b_val, NULL);
 				printf("Device to your requirements doesnt exist\n");
 				return 1;
 			}
@@ -411,8 +367,7 @@ int main(int argc, char* argv[]) {
 			}
 			if (listdevices["dgpu"].size() == 0) {
 				my_device = NULL;
-				free(a_val);
-				free(b_val);
+				freeMatrixMemory(a_val, b_val, NULL);
 				printf("Device to your requirements doesnt exist\n");
 				return 1;
 			}
@@ -445,31 +400,38 @@ int main(int argc, char* argv[]) {
 	if (c_val == NULL)
 	{
 		printf("Error at memory allocation\n");
+		freeMatrixMemory(a_val, b_val, NULL);
 		return 1;
 	}
 	char realization = std::stoi(args["realization"]);
-	//удалить потом, сравнение с хостом///////
-	//cl_float* C_host = (cl_float*)malloc(sizeof(cl_float) * M * N);
-	//MatMul_omp(&a_val[0], &b_val[0], &C_host[0], M, N, K);
-	/////////
-	switch (realization) {
-	case 0: {
+	if (realization == 0) {
 		MatMul_omp(a_val, b_val, c_val, M, N, K);
 		writeMatrixToFile(N, M, c_val, args["output"].c_str());
 	}
-		  break;
-	case 1:
+	else
 	{
-		cl_context context = clCreateContext(NULL, 1, &my_device, NULL, NULL, NULL);
-		cl_command_queue queue = clCreateCommandQueue(context, my_device, CL_QUEUE_PROFILING_ENABLE, NULL);
-		cl_mem a = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(cl_float) * M * K, NULL, NULL);
-		cl_mem b = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(cl_float) * K * N, NULL, NULL);
-		cl_mem c = clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(cl_float) * M * N, NULL, NULL);
+		std::string kernels_name[3] = { "globalmem_r1", "localmem_r2", "localmem_vector_r3" };
+		cl_int err;
+		cl_context context = clCreateContext(NULL, 1, &my_device, NULL, NULL, &err);
+		if (context == NULL || err != CL_SUCCESS) {
+			printf("Error creating OpenCL context: %d\n", err);
+			freeMatrixMemory(a_val, b_val, c_val);
+			return 1;
+		}
+		cl_command_queue queue = clCreateCommandQueue(context, my_device, CL_QUEUE_PROFILING_ENABLE, &err);
+		if (queue == NULL || err != CL_SUCCESS) {
+			printf("Error creating OpenCL context: %d\n", err);
+			releaseOpenCLResources(NULL, NULL, NULL, NULL, NULL, NULL, &context);
+			freeMatrixMemory(a_val, b_val, c_val);
+			return 1;
+		}
 		FILE* ptrFile = NULL;
-		ptrFile = fopen("matrix_globalmem.txt", "rb");
+		ptrFile = fopen("kernels.cl", "rb");
 		if (!ptrFile)
 		{
 			printf("File doesn't read\n");
+			releaseOpenCLResources(NULL, NULL, NULL, NULL, NULL, &queue, &context);
+			freeMatrixMemory(a_val, b_val, c_val);
 			return 1;
 		}
 		fseek(ptrFile, 0, SEEK_END);
@@ -479,333 +441,200 @@ int main(int argc, char* argv[]) {
 		if (data == NULL)
 		{
 			printf("Error at memory allocation\n");
+			fclose(ptrFile);
+			releaseOpenCLResources(NULL, NULL, NULL, NULL, NULL, &queue, &context);
+			freeMatrixMemory(a_val, b_val, c_val);
 			return 1;
 		}
 		size_t result = fread(data, 1, size, ptrFile);
 		if (result != size)
 		{
-			printf("File doesnt read\n");
+			printf("File read incorrect\n");
+			fclose(ptrFile);
+			releaseOpenCLResources(NULL, NULL, NULL, NULL, NULL, &queue, &context);
+			freeMatrixMemory(a_val, b_val, c_val);
+			free(data);
 			return 1;
 		}
 		data[size] = 0;
 		fclose(ptrFile);
-		//printf("%s", data);
-		cl_program prog = clCreateProgramWithSource(context, 1, (const char**)&data, &size, NULL); // ���������� � �����������. ��� ���� �������� ������ � .txt ����� �� ������, ���� �������� ������
-		cl_int build_result = clBuildProgram(prog, 1, &my_device, "", NULL, NULL); //��� ��� build. ������ ������������ ������
-		if (build_result) { //������� ��� ������, ���� ��������� ������
+		cl_program prog = clCreateProgramWithSource(context, 1, (const char**)&data, &size, NULL);
+		if (prog == NULL) {
+			printf("Error: clCreateProgramWithSource returns NULL\n");
+			releaseOpenCLResources(NULL, NULL, NULL, NULL, NULL, &queue, &context);
+			freeMatrixMemory(a_val, b_val, c_val);
+			free(data);
+			return 1;
+		}
+		free(data);
+		cl_int build_result = clBuildProgram(prog, 1, &my_device, "", NULL, NULL);
+		if (build_result) {
 			size_t size_build_log;
 			clGetProgramBuildInfo(prog, my_device, CL_PROGRAM_BUILD_LOG, 0, NULL, &size_build_log);
 			std::vector <char> build_log_name(size_build_log);
 			clGetProgramBuildInfo(prog, my_device, CL_PROGRAM_BUILD_LOG, size_build_log, build_log_name.data(), NULL);
 			printf("%s\n", build_log_name.data());
-		}
-		cl_event write_event, kernel_event, read_event;
-		clEnqueueWriteBuffer(queue, a, CL_FALSE, 0, sizeof(cl_float) * M * K, a_val, 0, NULL, &write_event); //2 ���������� ������� ������ � ����� � �����
-		clEnqueueWriteBuffer(queue, b, CL_FALSE, 0, sizeof(cl_float) * K * N, b_val, 0, NULL, &write_event);  // CL_FALSE - �� ����������� �������� - ����������� �������. � ������� �����. ���� CL_TRUE (������ ���� � c), �� �������� ����������� - �� ���� ��������� ������ �������� � ������ ����� ���������� �����
-		cl_kernel kernel = clCreateKernel(prog, "add", NULL); // ������� ����. � ������ ����� ���� ��������� ����. ��������, � ��� main ���� ����. ��� ���� ��������� � ������� add (�� .txt ����)
-		clSetKernelArg(kernel, 0, sizeof(cl_mem), &a); //0,1,2 - ����� ��������� � ������� .txt
-		clSetKernelArg(kernel, 1, sizeof(cl_mem), &b);
-		clSetKernelArg(kernel, 2, sizeof(cl_mem), &c);
-		clSetKernelArg(kernel, 3, sizeof(cl_uint), &M);
-		clSetKernelArg(kernel, 4, sizeof(cl_uint), &N);
-		clSetKernelArg(kernel, 5, sizeof(cl_uint), &K);
-		size_t global_work_size[2] = { N, M }; //���� ��������� ������ ������ - ������ ������ �� 2� size t. � ��� ������ ���������� ���������� ������, � ����� ������ size_array = 3. � ����� ����� ����������� ���� c[i]
-		clEnqueueNDRangeKernel(queue, kernel, 2, NULL, &global_work_size[0], NULL, 0, NULL, &kernel_event); //kernel �������� � �������
-		clEnqueueReadBuffer(queue, c, CL_TRUE, 0, sizeof(cl_float) * M * N, c_val, 0, NULL, &read_event); // ��������� � ������ ���������. ���� CL_TRUE - ��� ����������� ��������, �.�. ��� ����� ������� ��������� ���������� ������������, � ����� ������� ��������� � �����
-
-		cl_ulong write_start, write_end, kernel_start, kernel_end, read_start, read_end;
-
-		clGetEventProfilingInfo(write_event, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &write_start, NULL);
-		clGetEventProfilingInfo(write_event, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &write_end, NULL);
-
-		clGetEventProfilingInfo(kernel_event, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &kernel_start, NULL);
-		clGetEventProfilingInfo(kernel_event, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &kernel_end, NULL);
-
-		clGetEventProfilingInfo(read_event, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &read_start, NULL);
-		clGetEventProfilingInfo(read_event, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &read_end, NULL);
-
-		double kernel_time = (double)(kernel_end - kernel_start);
-		double total_time = (double)((write_end - write_start) + (kernel_end - kernel_start) + (read_end - read_start));
-		printf("Device: %s\tPlatform: %s Time: %g\t%g\n", my_device_name.c_str(), my_platform_name.c_str(), kernel_time / 1e6, total_time / 1e6);
-		writeMatrixToFile(N, M, c_val, args["output"].c_str());
-		clReleaseKernel(kernel);
-		clReleaseProgram(prog);
-		clReleaseMemObject(a);
-		clReleaseMemObject(b);
-		clReleaseMemObject(c);
-		clReleaseCommandQueue(queue);
-		clReleaseContext(context);
-		free(data);
-	}
-	break;
-	case 2:
-	{
-		cl_uint add_K = TILE_SIZE * (K / TILE_SIZE + 1), add_M = TILE_SIZE * (M / TILE_SIZE + 1), add_N = TILE_SIZE * (N / TILE_SIZE + 1);
-		cl_float* a_val_exp = (cl_float*)malloc(add_M * add_K * sizeof(cl_float));
-		cl_float* b_val_exp = (cl_float*)malloc(add_K * add_N * sizeof(cl_float));
-		cl_float* c_val_exp = (cl_float*)malloc(sizeof(cl_float) * add_M * add_N);
-		if (a_val_exp == NULL || b_val_exp == NULL || c_val_exp == NULL) {
-			fprintf(stderr, "Memory allocation failed\n");
-			fclose(file);
-			free(a_val_exp);
-			free(b_val_exp);
+			releaseOpenCLResources(NULL, NULL, NULL, NULL, &prog, &queue, &context);
+			freeMatrixMemory(a_val, b_val, c_val);
 			return 1;
 		}
-		for (int i = 0; i < add_M; i++) {
-			for (int j = 0; j < add_K; j++) {
-				a_val_exp[i * add_K + j] = 0;
+		cl_event write_event = NULL, kernel_event = NULL, read_event = NULL;
+		if (realization == 1) {
+			cl_mem a = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(cl_float) * M * K, NULL, NULL);
+			cl_mem b = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(cl_float) * K * N, NULL, NULL);
+			cl_mem c = clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(cl_float) * M * N, NULL, NULL);
+			if (a == NULL || b == NULL || c == NULL) {
+				printf("Failed to create buffers\n");
+				releaseOpenCLResources(NULL, &a, &b, &c, &prog, &queue, &context);
+				freeMatrixMemory(a_val, b_val, c_val);
+				return 1;
 			}
-		}
-		for (int i = 0; i < M; i++) {
-			for (int j = 0; j < K; j++) {
-				a_val_exp[i * add_K + j] = a_val[i * K + j];
+			clEnqueueWriteBuffer(queue, a, CL_FALSE, 0, sizeof(cl_float) * M * K, a_val, 0, NULL, &write_event);
+			clEnqueueWriteBuffer(queue, b, CL_FALSE, 0, sizeof(cl_float) * K * N, b_val, 0, NULL, &write_event);
+			cl_kernel kernel = clCreateKernel(prog, kernels_name[0].c_str(), NULL);
+			if (kernel == NULL) {
+				printf("Error: kernel %s doesnt create\n", kernels_name[0].c_str());
+				releaseOpenCLResources(NULL, &a, &b, &c, &prog, &queue, &context);
+				freeMatrixMemory(a_val, b_val, c_val);
+				return 1;
 			}
+			clSetKernelArg(kernel, 0, sizeof(cl_mem), &a);
+			clSetKernelArg(kernel, 1, sizeof(cl_mem), &b);
+			clSetKernelArg(kernel, 2, sizeof(cl_mem), &c);
+			clSetKernelArg(kernel, 3, sizeof(cl_uint), &M);
+			clSetKernelArg(kernel, 4, sizeof(cl_uint), &N);
+			clSetKernelArg(kernel, 5, sizeof(cl_uint), &K);
+			size_t global_work_size[2] = { N, M };
+			clEnqueueNDRangeKernel(queue, kernel, 2, NULL, &global_work_size[0], NULL, 0, NULL, &kernel_event);
+			clEnqueueReadBuffer(queue, c, CL_TRUE, 0, sizeof(cl_float) * M * N, c_val, 0, NULL, &read_event);
+			writeMatrixToFile(N, M, c_val, args["output"].c_str());
+			releaseOpenCLResources(&kernel, &a, &b, &c, &prog, &queue, &context);
 		}
-		for (int i = 0; i < add_K; i++) {
-			for (int j = 0; j < add_N; j++) {
-				b_val_exp[i * add_N + j] = 0;
+
+		if (realization == 2 || realization == 3) {
+			cl_uint add_K = K, add_N = N, add_M = M;
+			cl_float* a_t_val_exp = NULL;
+			if (realization == 2) {
+				cl_uint add_K = LOC_SIZE_r2 * (K / LOC_SIZE_r2 + 1), add_M = LOC_SIZE_r2 * (M / LOC_SIZE_r2 + 1), add_N = LOC_SIZE_r2 * (N / LOC_SIZE_r2 + 1);
 			}
-		}
-		for (int i = 0; i < K; i++) {
-			for (int j = 0; j < N; j++) {
-				b_val_exp[i * add_N + j] = b_val[i * N + j];
+			if (realization == 3) {
+				cl_uint add_K = LOC_SIZE_r3 * (K / LOC_SIZE_r3 + 1), add_M = LOC_SIZE_r3 * (M / LOC_SIZE_r3 + 1), add_N = LOC_SIZE_r3 * (N / LOC_SIZE_r3 + 1);
+				a_t_val_exp = (cl_float*)malloc(add_M * add_K * sizeof(cl_float));
+				if (a_t_val_exp == NULL) {
+					printf("Memory allocation error\n");
+					releaseOpenCLResources(NULL, NULL, NULL, NULL, &prog, &queue, &context);
+					freeMatrixMemory(a_val, b_val, c_val);
+					return 1;
+				}
 			}
-		}
-		cl_context context = clCreateContext(NULL, 1, &my_device, NULL, NULL, NULL);
-		cl_command_queue queue = clCreateCommandQueue(context, my_device, CL_QUEUE_PROFILING_ENABLE, NULL);
-		cl_mem a = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(cl_float) * add_M * add_K, NULL, NULL);
-		cl_mem b = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(cl_float) * add_K * add_N, NULL, NULL);
-		cl_mem c = clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(cl_float) * add_M * add_N, NULL, NULL);
-		FILE* ptrFile = NULL;
-		ptrFile = fopen("matrix_localmem.txt", "rb");
-		if (!ptrFile)
-		{
-			printf("File doesn't read\n");
-			return 1;
-		}
-		fseek(ptrFile, 0, SEEK_END);
-		size_t size = ftell(ptrFile);
-		rewind(ptrFile);
-		char* data = (char*)malloc(sizeof(char) * (size + 1));
-		if (data == NULL)
-		{
-			printf("Error at memory allocation\n");
-			return 1;
-		}
-		size_t result = fread(data, 1, size, ptrFile);
-		if (result != size)
-		{
-			printf("File doesnt read\n");
-			return 1;
-		}
-		data[size] = 0;
-		fclose(ptrFile);
-		//printf("%s", data);
-		cl_program prog = clCreateProgramWithSource(context, 1, (const char**)&data, &size, NULL); // ���������� � �����������. ��� ���� �������� ������ � .txt ����� �� ������, ���� �������� ������
-		cl_int build_result = clBuildProgram(prog, 1, &my_device, "", NULL, NULL); //��� ��� build. ������ ������������ ������
-		if (build_result) { //������� ��� ������, ���� ��������� ������.���� ������� � .txt ";" ����� �������, �� �� ������ �� ������
-			size_t size_build_log;
-			clGetProgramBuildInfo(prog, my_device, CL_PROGRAM_BUILD_LOG, 0, NULL, &size_build_log);
-			std::vector <char> build_log_name(size_build_log);
-			clGetProgramBuildInfo(prog, my_device, CL_PROGRAM_BUILD_LOG, size_build_log, build_log_name.data(), NULL);
-			printf("%s\n", build_log_name.data());
-		}
-		cl_event write_event, kernel_event, read_event;
-		clEnqueueWriteBuffer(queue, a, CL_FALSE, 0, sizeof(cl_float) * add_M * add_K, a_val_exp, 0, NULL, &write_event); //2 ���������� ������� ������ � ����� � �����
-		clEnqueueWriteBuffer(queue, b, CL_FALSE, 0, sizeof(cl_float) * add_K * add_N, b_val_exp, 0, NULL, &write_event);  // CL_FALSE - �� ����������� �������� - ����������� �������. � ������� �����. ���� CL_TRUE (������ ���� � c), �� �������� ����������� - �� ���� ��������� ������ �������� � ������ ����� ���������� �����
-		cl_kernel kernel = clCreateKernel(prog, "add", NULL); // ������� ����. � ������ ����� ���� ��������� ����. ��������, � ��� main ���� ����. ��� ���� ��������� � ������� add (�� .txt ����)
-		clSetKernelArg(kernel, 0, sizeof(cl_mem), &a); //0,1,2 - ����� ��������� � ������� .txt
-		clSetKernelArg(kernel, 1, sizeof(cl_mem), &b);
-		clSetKernelArg(kernel, 2, sizeof(cl_mem), &c);
-		clSetKernelArg(kernel, 3, sizeof(cl_uint), &add_M);
-		clSetKernelArg(kernel, 4, sizeof(cl_uint), &add_N);
-		clSetKernelArg(kernel, 5, sizeof(cl_uint), &add_K);
-		size_t global_work_size[2] = { add_N, add_M }; //���� ��������� ������ ������ - ������ ������ �� 2� size t. � ��� ������ ���������� ���������� ������, � ����� ������ size_array = 3. � ����� ����� ����������� ���� c[i]
-		size_t local_work_size[2] = { TILE_SIZE, TILE_SIZE };
-		clEnqueueNDRangeKernel(queue, kernel, 2, NULL, &global_work_size[0], &local_work_size[0], 0, NULL, &kernel_event); //kernel �������� � �������
-		clEnqueueReadBuffer(queue, c, CL_TRUE, 0, sizeof(cl_float) * add_M * add_N, c_val_exp, 0, NULL, &read_event); // ��������� � ������ ���������. ���� CL_TRUE - ��� ����������� ��������, �.�. ��� ����� ������� ��������� ���������� ������������, � ����� ������� ��������� � �����
-
-		cl_ulong write_start, write_end, kernel_start, kernel_end, read_start, read_end;
-
-		clGetEventProfilingInfo(write_event, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &write_start, NULL);
-		clGetEventProfilingInfo(write_event, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &write_end, NULL);
-
-		clGetEventProfilingInfo(kernel_event, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &kernel_start, NULL);
-		clGetEventProfilingInfo(kernel_event, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &kernel_end, NULL);
-
-		clGetEventProfilingInfo(read_event, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &read_start, NULL);
-		clGetEventProfilingInfo(read_event, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &read_end, NULL);
-
-		double kernel_time = (double)(kernel_end - kernel_start);
-		double total_time = (double)((write_end - write_start) + (kernel_end - kernel_start) + (read_end - read_start));
-		printf("Device: %s\tPlatform: %s Time: %g\t%g\n", my_device_name.c_str(), my_platform_name.c_str(), kernel_time / 1e6, total_time / 1e6);
-		printf("LOCAL_WORK_SIZE [%i, %i]\nWI_WORK %i\n", TILE_SIZE, TILE_SIZE, 1);
-		for (int i = 0; i < M; i++) {
-			for (int j = 0; j < N; j++) {
-				c_val[i * N + j] = c_val_exp[i * add_N + j];
+			cl_float* a_val_exp = (cl_float*)malloc(add_M * add_K * sizeof(cl_float));
+			cl_float* b_val_exp = (cl_float*)malloc(add_K * add_N * sizeof(cl_float));
+			cl_float* c_val_exp = (cl_float*)malloc(sizeof(cl_float) * add_M * add_N);
+			if (a_val_exp == NULL || b_val_exp == NULL || c_val_exp == NULL) {
+				printf("Memory allocation error\n");
+				releaseOpenCLResources(NULL, NULL, NULL, NULL, &prog, &queue, &context);
+				freeMatrixMemory(a_val, b_val, c_val);
+				freeMatrixMemory(a_val_exp, b_val_exp, c_val_exp);
+				free(a_t_val_exp);
+				return 1;
 			}
-		}
-		writeMatrixToFile(N, M, c_val, args["output"].c_str());
-		clReleaseKernel(kernel);
-		clReleaseProgram(prog);
-		clReleaseMemObject(a);
-		clReleaseMemObject(b);
-		clReleaseMemObject(c);
-		clReleaseCommandQueue(queue);
-		clReleaseContext(context);
-		free(data);
-		free(a_val_exp);
-		free(b_val_exp);
-		free(c_val_exp);
-	}
-	break;
-	case 3:
-	{
-		cl_uint add_K = TILE_SIZE * (K / TILE_SIZE + 1), add_M = TILE_SIZE * (M / TILE_SIZE + 1), add_N = TILE_SIZE * (N / TILE_SIZE + 1);
-		cl_float* a_val_exp = (cl_float*)malloc(add_M * add_K * sizeof(cl_float));
-		cl_float* b_val_exp = (cl_float*)malloc(add_K * add_N * sizeof(cl_float));
-		cl_float* c_val_exp = (cl_float*)malloc(sizeof(cl_float) * add_M * add_N);
-		cl_float* a_t_val_exp = (cl_float*)malloc(add_M * add_K * sizeof(cl_float));
-		if (a_val_exp == NULL || b_val_exp == NULL || c_val_exp == NULL || a_t_val_exp == NULL) {
-			fprintf(stderr, "Memory allocation failed\n");
-			fclose(file);
-			free(a_val_exp);
-			free(b_val_exp);
-			free(c_val_exp);
+			for (int i = 0; i < add_M; i++) {
+				for (int j = 0; j < add_K; j++) {
+					a_val_exp[i * add_K + j] = 0;
+				}
+			}
+			for (int i = 0; i < M; i++) {
+				for (int j = 0; j < K; j++) {
+					a_val_exp[i * add_K + j] = a_val[i * K + j];
+				}
+			}
+			for (int i = 0; i < add_K; i++) {
+				for (int j = 0; j < add_N; j++) {
+					b_val_exp[i * add_N + j] = 0;
+				}
+			}
+			for (int i = 0; i < K; i++) {
+				for (int j = 0; j < N; j++) {
+					b_val_exp[i * add_N + j] = b_val[i * N + j];
+				}
+			}
+			cl_mem a_exp = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(cl_float) * add_M * add_K, NULL, NULL);
+			cl_mem b_exp = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(cl_float) * add_K * add_N, NULL, NULL);
+			cl_mem c_exp = clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(cl_float) * add_M * add_N, NULL, NULL);
+			if (a_exp == NULL || b_exp == NULL || c_exp == NULL) {
+				printf("Failed to create buffers\n");
+				releaseOpenCLResources(NULL, &a_exp, &b_exp, &c_exp, &prog, &queue, &context);
+				freeMatrixMemory(a_val, b_val, c_val);
+				freeMatrixMemory(a_val_exp, b_val_exp, c_val_exp);
+				free(a_t_val_exp);
+				return 1;
+			}
+			if (realization == 2)
+			{
+				clEnqueueWriteBuffer(queue, a_exp, CL_FALSE, 0, sizeof(cl_float) * add_M * add_K, a_val_exp, 0, NULL, &write_event);
+			}
+			if (realization == 3)
+			{
+				Transpose(a_val_exp, a_t_val_exp, add_K, add_M);
+				clEnqueueWriteBuffer(queue, a_exp, CL_FALSE, 0, sizeof(cl_float) * add_M * add_K, a_t_val_exp, 0, NULL, &write_event);
+			}
+			clEnqueueWriteBuffer(queue, b_exp, CL_FALSE, 0, sizeof(cl_float) * add_K * add_N, b_val_exp, 0, NULL, &write_event);
+			cl_kernel kernel = clCreateKernel(prog, kernels_name[realization - 1].c_str(), NULL);
+			if (kernel == NULL) {
+				printf("Error: kernel %s doesnt create\n", kernels_name[realization - 1].c_str());
+				releaseOpenCLResources(NULL, &a_exp, &b_exp, &c_exp, &prog, &queue, &context);
+				freeMatrixMemory(a_val, b_val, c_val);
+				freeMatrixMemory(a_val_exp, b_val_exp, c_val_exp);
+				free(a_t_val_exp);
+				return 1;
+			}
+			clSetKernelArg(kernel, 0, sizeof(cl_mem), &a_exp);
+			clSetKernelArg(kernel, 1, sizeof(cl_mem), &b_exp);
+			clSetKernelArg(kernel, 2, sizeof(cl_mem), &c_exp);
+			clSetKernelArg(kernel, 3, sizeof(cl_uint), &add_M);
+			clSetKernelArg(kernel, 4, sizeof(cl_uint), &add_N);
+			clSetKernelArg(kernel, 5, sizeof(cl_uint), &add_K);
+			size_t global_work_size[2], local_work_size[2];
+			if (realization == 2) {
+				global_work_size[0] = add_N;
+				global_work_size[1] = add_M;
+				local_work_size[0] = LOC_SIZE_r2;
+				local_work_size[1] = LOC_SIZE_r2;
+			}
+			if (realization == 3) {
+				global_work_size[0] = add_N / THREAD_WORK_X;
+				global_work_size[1] = add_M / THREAD_WORK_Y;
+				local_work_size[0] = LOC_SIZE_r3 / THREAD_WORK_X;
+				local_work_size[1] = LOC_SIZE_r3 / THREAD_WORK_Y;
+			}
+			clEnqueueNDRangeKernel(queue, kernel, 2, NULL, global_work_size, local_work_size, 0, NULL, &kernel_event);
+			clEnqueueReadBuffer(queue, c_exp, CL_TRUE, 0, sizeof(cl_float) * add_M * add_N, c_val_exp, 0, NULL, &read_event);
+			for (int i = 0; i < M; i++) {
+				for (int j = 0; j < N; j++) {
+					c_val[i * N + j] = c_val_exp[i * add_N + j];
+				}
+			}
+			writeMatrixToFile(N, M, c_val, args["output"].c_str());
 			free(a_t_val_exp);
-			return 1;
+			freeMatrixMemory(a_val_exp, b_val_exp, c_val_exp);
+			releaseOpenCLResources(&kernel, &a_exp, &b_exp, &c_exp, &prog, &queue, &context);
 		}
-		for (int i = 0; i < add_M; i++) {
-			for (int j = 0; j < add_K; j++) {
-				a_val_exp[i * add_K + j] = 0;
-			}
-		}
-		for (int i = 0; i < M; i++) {
-			for (int j = 0; j < K; j++) {
-				a_val_exp[i * add_K + j] = a_val[i * K + j];
-			}
-		}
-		for (int i = 0; i < add_K; i++) {
-			for (int j = 0; j < add_N; j++) {
-				b_val_exp[i * add_N + j] = 0;
-			}
-		}
-		for (int i = 0; i < K; i++) {
-			for (int j = 0; j < N; j++) {
-				b_val_exp[i * add_N + j] = b_val[i * N + j];
-			}
-		}
-		/*printf("Matrix A:\n");
-		for (int i = 0; i < add_M; ++i) {
-			for (int j = 0; j < add_K; ++j) {
-				printf("%f ", a_val_exp[i * add_K + j]);
-			}
-		printf("\n");
-		}*/
-		Transpose(a_val_exp, a_t_val_exp, add_K, add_M);
-		//writeMatrixToFile(add_K, add_M, a_val_exp, "A.txt");
-		//writeMatrixToFile(add_M, add_K, a_t_val_exp, "A_T.txt");
-		//Transpose(a_t_val_exp, a_val_exp, add_K, add_N);
-		cl_context context = clCreateContext(NULL, 1, &my_device, NULL, NULL, NULL);
-		cl_command_queue queue = clCreateCommandQueue(context, my_device, CL_QUEUE_PROFILING_ENABLE, NULL);
-		cl_mem a = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(cl_float) * add_M * add_K, NULL, NULL);
-		cl_mem b = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(cl_float) * add_K * add_N, NULL, NULL);
-		cl_mem c = clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(cl_float) * add_M * add_N, NULL, NULL);
-		FILE* ptrFile = NULL;
-		ptrFile = fopen("matrix_vector_wi4_mod_v_2_2.txt", "rb");
-		if (!ptrFile)
-		{
-			printf("File doesn't read\n");
-			return 1;
-		}
-		fseek(ptrFile, 0, SEEK_END);
-		size_t size = ftell(ptrFile);
-		rewind(ptrFile);
-		char* data = (char*)malloc(sizeof(char) * (size + 1));
-		if (data == NULL)
-		{
-			printf("Error at memory allocation\n");
-			return 1;
-		}
-		size_t result = fread(data, 1, size, ptrFile);
-		if (result != size)
-		{
-			printf("File doesnt read\n");
-			return 1;
-		}
-		data[size] = 0;
-		fclose(ptrFile);
-		//printf("%s", data);
-		cl_program prog = clCreateProgramWithSource(context, 1, (const char**)&data, &size, NULL); 
-		cl_int build_result = clBuildProgram(prog, 1, &my_device, "", NULL, NULL); 
-		if (build_result) { 
-			size_t size_build_log;
-			clGetProgramBuildInfo(prog, my_device, CL_PROGRAM_BUILD_LOG, 0, NULL, &size_build_log);
-			std::vector <char> build_log_name(size_build_log);
-			clGetProgramBuildInfo(prog, my_device, CL_PROGRAM_BUILD_LOG, size_build_log, build_log_name.data(), NULL);
-			printf("%s\n", build_log_name.data());
-		}
-		cl_event write_event, kernel_event, read_event;
-		clEnqueueWriteBuffer(queue, a, CL_FALSE, 0, sizeof(cl_float) * add_M * add_K, a_t_val_exp, 0, NULL, &write_event); //2 ���������� ������� ������ � ����� � �����
-		clEnqueueWriteBuffer(queue, b, CL_FALSE, 0, sizeof(cl_float) * add_K * add_N, b_val_exp, 0, NULL, &write_event);  // CL_FALSE - �� ����������� �������� - ����������� �������. � ������� �����. ���� CL_TRUE (������ ���� � c), �� �������� ����������� - �� ���� ��������� ������ �������� � ������ ����� ���������� �����
-		cl_kernel kernel = clCreateKernel(prog, "add", NULL); // ������� ����. � ������ ����� ���� ��������� ����. ��������, � ��� main ���� ����. ��� ���� ��������� � ������� add (�� .txt ����)
-		clSetKernelArg(kernel, 0, sizeof(cl_mem), &a); //0,1,2 - ����� ��������� � ������� .txt
-		clSetKernelArg(kernel, 1, sizeof(cl_mem), &b);
-		clSetKernelArg(kernel, 2, sizeof(cl_mem), &c);
-		clSetKernelArg(kernel, 3, sizeof(cl_uint), &add_M);
-		clSetKernelArg(kernel, 4, sizeof(cl_uint), &add_N);
-		clSetKernelArg(kernel, 5, sizeof(cl_uint), &add_K);
-		size_t global_work_size[2] = { add_N / THREAD_WORK, add_M / 2 }; //���� ��������� ������ ������ - ������ ������ �� 2� size t. � ��� ������ ���������� ���������� ������, � ����� ������ size_array = 3. � ����� ����� ����������� ���� c[i]
-		size_t local_work_size[2] = { TILE_SIZE / THREAD_WORK, TILE_SIZE / 2 };
-		clEnqueueNDRangeKernel(queue, kernel, 2, NULL, &global_work_size[0], &local_work_size[0], 0, NULL, &kernel_event); //kernel �������� � �������
-		clEnqueueReadBuffer(queue, c, CL_TRUE, 0, sizeof(cl_float) * add_M * add_N, c_val_exp, 0, NULL, &read_event); // ��������� � ������ ���������. ���� CL_TRUE - ��� ����������� ��������, �.�. ��� ����� ������� ��������� ���������� ������������, � ����� ������� ��������� � �����
-
 		cl_ulong write_start, write_end, kernel_start, kernel_end, read_start, read_end;
-
 		clGetEventProfilingInfo(write_event, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &write_start, NULL);
 		clGetEventProfilingInfo(write_event, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &write_end, NULL);
-
 		clGetEventProfilingInfo(kernel_event, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &kernel_start, NULL);
 		clGetEventProfilingInfo(kernel_event, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &kernel_end, NULL);
-
 		clGetEventProfilingInfo(read_event, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &read_start, NULL);
 		clGetEventProfilingInfo(read_event, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &read_end, NULL);
-
 		double kernel_time = (double)(kernel_end - kernel_start);
 		double total_time = (double)((write_end - write_start) + (kernel_end - kernel_start) + (read_end - read_start));
 		printf("Device: %s\tPlatform: %s Time: %g\t%g\n", my_device_name.c_str(), my_platform_name.c_str(), kernel_time / 1e6, total_time / 1e6);
-		printf("LOCAL_WORK_SIZE [%i, %i]\nWI_WORK %i\n", TILE_SIZE, TILE_SIZE, THREAD_WORK);
-		for (int i = 0; i < M; i++) {
-			for (int j = 0; j < N; j++) {
-				c_val[i * N + j] = c_val_exp[i * add_N + j];
-			}
+		if (realization == 2) {
+			printf("LOCAL_WORK_SIZE [%i, %i]\nWI_WORK %i\n", LOC_SIZE_r2, LOC_SIZE_r2, 1);
 		}
-		cl_float* C_host = (cl_float*)malloc(sizeof(cl_float) * add_M * add_N);
-		//MatMul_omp_t(a_t_val_exp, b_val_exp, C_host, add_M, add_N, add_K);
-		//writeMatrixToFile(add_N, add_M, c_val_exp, "expanded_device.txt");
-		//writeMatrixToFile(add_N, add_M, C_host, "transhost.txt");
-		writeMatrixToFile(N, M, c_val, args["output"].c_str());
-		//Compare(C_host, c_val_exp, add_M, add_N);
-		clReleaseKernel(kernel);
-		clReleaseProgram(prog);
-		clReleaseMemObject(a);
-		clReleaseMemObject(b);
-		clReleaseMemObject(c);
-		clReleaseCommandQueue(queue);
-		clReleaseContext(context);
-		free(data);
-		free(a_t_val_exp);
-		free(a_val_exp);
-		free(b_val_exp);
-		free(c_val_exp);
+		if (realization == 3) {
+			printf("LOCAL_WORK_SIZE [%i, %i]\nWI_WORK %i\n", LOC_SIZE_r3, LOC_SIZE_r3, THREAD_WORK_X* THREAD_WORK_Y);
+		}
+	freeMatrixMemory(a_val, b_val, c_val);
 	}
-
-	break;
-	default:
-		break;
-	}
-	free(a_val);
-	free(b_val);
-	free(c_val);
-	return 0;
 }
