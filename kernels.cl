@@ -4,6 +4,9 @@
 #define THREAD_WORK_Y 3
 #define SIZE_VEC_r3 (LOC_SIZE_r3 / THREAD_WORK_X)
 
+#define TILE_SIZE 32
+#define SIZE_VEC (TILE_SIZE / THREAD_WORK_X)
+
 #define vloadn vload2
 #define vstoren vstore2
 #define floatn float2
@@ -46,7 +49,7 @@ kernel void localmem_r2(global const float *A, global const float *B, global flo
 }
 
 
-kernel void localmem_vector_r3(global float *A, global float *B, global float *C,
+/*kernel void localmem_vector_r3(global float *A, global float *B, global float *C,
                                     unsigned int M, unsigned int N, unsigned int K)
 {
     uint i = get_global_id(0);
@@ -82,4 +85,35 @@ kernel void localmem_vector_r3(global float *A, global float *B, global float *C
     vstoren(sum[0], 0, &C[j*THREAD_WORK_X * N + i * THREAD_WORK_X]);
     vstoren(sum[1], 0, &C[(j*THREAD_WORK_X + 1) * N + i * THREAD_WORK_X]);
     vstoren(sum[2], 0, &C[(j*THREAD_WORK_X + 20) * N + i * THREAD_WORK_X]);
+}*/
+
+kernel void localmem_vector_r3(global float *a, global float *b, global float *c,
+                                      unsigned int M, unsigned int N, unsigned int K)
+{
+    uint i = get_global_id(0);
+    uint j = get_global_id(1);
+    uint local_i = get_local_id(0);
+    uint local_j = get_local_id(1);
+    uint group_j = get_group_id(1);
+
+    local floatn tileA[TILE_SIZE][SIZE_VEC]; 	
+    local floatn tileB[TILE_SIZE][SIZE_VEC]; 
+    floatn sum[2] = {0.0, 0.0};
+    for (int tileK = 0; tileK * TILE_SIZE < K; ++tileK) {
+        tileA[local_j* THREAD_WORK_Y][local_i] = vloadn(0, &a[(local_j * THREAD_WORK_Y + tileK * TILE_SIZE) * M  + local_i * THREAD_WORK_X + group_j * TILE_SIZE]);
+        tileA[local_j* THREAD_WORK_Y+1][local_i] = vloadn(0, &a[(local_j* THREAD_WORK_Y+1 + tileK * TILE_SIZE) * M  + local_i * THREAD_WORK_X + group_j * TILE_SIZE]);
+        tileB[local_j* THREAD_WORK_Y][local_i] = vloadn(0, &b[(tileK * TILE_SIZE + local_j* THREAD_WORK_Y) * N + i * THREAD_WORK_X]);
+        tileB[local_j* THREAD_WORK_Y+1][local_i] = vloadn(0, &b[(tileK * TILE_SIZE + local_j* THREAD_WORK_Y+1) * N + i * THREAD_WORK_X]);
+        barrier(CLK_LOCAL_MEM_FENCE);
+
+        for (int k = 0; k < TILE_SIZE; ++k) { 
+            floatn subtileA = tileA[k][local_j];
+            floatn subtileB = tileB[k][local_i];
+            sum[0] += subtileA.x * subtileB;
+            sum[1] += subtileA.y * subtileB;
+        }
+        barrier(CLK_LOCAL_MEM_FENCE);
+    }
+    vstoren(sum[0], 0, &c[j*THREAD_WORK_Y * N + i * THREAD_WORK_X]);
+    vstoren(sum[1], 0, &c[(j*THREAD_WORK_Y + 1) * N + i * THREAD_WORK_X]);
 }
