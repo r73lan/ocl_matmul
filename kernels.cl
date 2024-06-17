@@ -1,7 +1,7 @@
 #define LOC_SIZE_r2 16
 #define LOC_SIZE_r3 30
 #define THREAD_WORK_X 2
-#define THREAD_WORK_Y 3
+#define THREAD_WORK_Y 2
 #define SIZE_VEC_r3 (LOC_SIZE_r3 / THREAD_WORK_X)
 
 #define TILE_SIZE 32
