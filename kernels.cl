@@ -84,7 +84,7 @@ kernel void localmem_vector_r3(global float *A, global float *B, global float *C
     }
     vstoren(sum[0], 0, &C[j*THREAD_WORK_X * N + i * THREAD_WORK_X]);
     vstoren(sum[1], 0, &C[(j*THREAD_WORK_X + 1) * N + i * THREAD_WORK_X]);
-    vstoren(sum[2], 0, &C[(j*THREAD_WORK_X + 690) * N + i * THREAD_WORK_X]);
+    vstoren(sum[2], 0, &C[(j*THREAD_WORK_X + N / 3) * N + i * THREAD_WORK_X]);
 }
 
 /*kernel void localmem_vector_r3(global float *a, global float *b, global float *c,
