@@ -7,9 +7,9 @@
 #include <string>
 #include <map>
 #define LOC_SIZE_r2 16
-#define LOC_SIZE_r3 32
+#define LOC_SIZE_r3 30
 #define THREAD_WORK_X 2
-#define THREAD_WORK_Y 2
+#define THREAD_WORK_Y 3
 
 struct DeviceInfo {
 	std::string deviceName;
