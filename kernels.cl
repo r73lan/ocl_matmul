@@ -3,6 +3,7 @@
 #define THREAD_WORK_X 2
 #define THREAD_WORK_Y 3
 #define SIZE_VEC_r3 (LOC_SIZE_r3 / THREAD_WORK_X)
+
 #define vloadn vload2
 #define vstoren vstore2
 #define floatn float2
@@ -67,18 +68,18 @@ kernel void localmem_vector_r3(global float *A, global float *B, global float *C
         tileB[local_j* THREAD_WORK_Y][local_i] = vloadn(0, &B[(tileK * LOC_SIZE_r3 + local_j* THREAD_WORK_Y) * N + i * THREAD_WORK_X]);
         tileB[local_j* THREAD_WORK_Y+1][local_i] = vloadn(0, &B[(tileK * LOC_SIZE_r3 + local_j* THREAD_WORK_Y+1) * N + i * THREAD_WORK_X]);
         tileB[local_j* THREAD_WORK_Y+2][local_i] = vloadn(0, &B[(tileK * LOC_SIZE_r3 + local_j* THREAD_WORK_Y+2) * N + i * THREAD_WORK_X]);
-        barrier(CLK_LOCAL_MEM_FENCE);
-      
+        barrier(CLK_LOCAL_MEM_FENCE);        
+       
         for (int k = 0; k < LOC_SIZE_r3; ++k) { 
             floatn subtileA = tileA.vec[k][local_j];
             floatn subtileB = tileB[k][local_i];
             sum[0] += subtileA.x * subtileB;
             sum[1] += subtileA.y * subtileB;
-            sum[2] += tileA.mat[k][3*local_j+2] * subtileB;
+            sum[2] += tileA.mat[k][20 + local_j] * subtileB;
         }
         barrier(CLK_LOCAL_MEM_FENCE);
     }
-    vstoren(sum[0], 0, &C[j*THREAD_WORK_Y * N + i * THREAD_WORK_X]);
-    vstoren(sum[1], 0, &C[(j*THREAD_WORK_Y + 1) * N + i * THREAD_WORK_X]);
-    vstoren(sum[2], 0, &C[(j*THREAD_WORK_Y + 2) * N + i * THREAD_WORK_X]);
+    vstoren(sum[0], 0, &C[j*THREAD_WORK_X * N + i * THREAD_WORK_X]);
+    vstoren(sum[1], 0, &C[(j*THREAD_WORK_X + 1) * N + i * THREAD_WORK_X]);
+    vstoren(sum[2], 0, &C[(j*THREAD_WORK_X + 20) * N + i * THREAD_WORK_X]);
 }
