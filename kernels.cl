@@ -1,7 +1,7 @@
 #define LOC_SIZE_r2 16
 #define LOC_SIZE_r3 30
 #define THREAD_WORK_X 2
-#define THREAD_WORK_Y 2
+#define THREAD_WORK_Y 3
 #define SIZE_VEC_r3 (LOC_SIZE_r3 / THREAD_WORK_X)
 
 #define TILE_SIZE 32
@@ -49,7 +49,7 @@ kernel void localmem_r2(global const float *A, global const float *B, global flo
 }
 
 
-/*kernel void localmem_vector_r3(global float *A, global float *B, global float *C,
+kernel void localmem_vector_r3(global float *A, global float *B, global float *C,
                                     unsigned int M, unsigned int N, unsigned int K)
 {
     uint i = get_global_id(0);
@@ -84,10 +84,10 @@ kernel void localmem_r2(global const float *A, global const float *B, global flo
     }
     vstoren(sum[0], 0, &C[j*THREAD_WORK_X * N + i * THREAD_WORK_X]);
     vstoren(sum[1], 0, &C[(j*THREAD_WORK_X + 1) * N + i * THREAD_WORK_X]);
-    vstoren(sum[2], 0, &C[(j*THREAD_WORK_X + 20) * N + i * THREAD_WORK_X]);
-}*/
+    vstoren(sum[2], 0, &C[(j*THREAD_WORK_X + 690) * N + i * THREAD_WORK_X]);
+}
 
-kernel void localmem_vector_r3(global float *a, global float *b, global float *c,
+/*kernel void localmem_vector_r3(global float *a, global float *b, global float *c,
                                       unsigned int M, unsigned int N, unsigned int K)
 {
     uint i = get_global_id(0);
@@ -116,4 +116,4 @@ kernel void localmem_vector_r3(global float *a, global float *b, global float *c
     }
     vstoren(sum[0], 0, &c[j*THREAD_WORK_Y * N + i * THREAD_WORK_X]);
     vstoren(sum[1], 0, &c[(j*THREAD_WORK_Y + 1) * N + i * THREAD_WORK_X]);
-}
+}*/
