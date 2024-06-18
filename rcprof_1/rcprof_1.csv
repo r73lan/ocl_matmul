@@ -14,7 +14,7 @@
 #Device gfx1010 PCIE device id=29471
 #OS Version=Windows 10 Build 10.0.0
 #DisplayName=matmul_1_prof
-#ListSeparator=;
+#ListSeparator=,
 #ForceSinglePass=False
-Method; ExecutionOrder; ThreadID; CallIndex; GlobalWorkSize; WorkGroupSize; Time; LocalMemSize; VGPRs; SGPRs; ScratchRegs; Wavefronts; VALUInsts; SALUInsts; VFetchInsts; SFetchInsts; VWriteInsts; LDSInsts; GDSInsts; VALUUtilization; VALUBusy; SALUBusy; FetchSize; WriteSize; L0CacheHit; L1CacheHit; L2CacheHit; MemUnitBusy; MemUnitStalled; WriteUnitStalled; LDSBankConflict
-add__k1_gfx10101; 1; 8208; 26; {   2048    2048       1}; NULL;        85,05104; 0; 15; 35; 0;    131072,00;     20496,00;      4101,00;         0,00;         5,00;         0,00;         0,00;         0,00;       100,00;        37,05;        12,35;   1742013,75;     16384,50;        50,00;         6,24;        94,42;        99,29;         0,00;         0,00;         0,00
+Method, ExecutionOrder, ThreadID, CallIndex, GlobalWorkSize, WorkGroupSize, Time, LocalMemSize, VGPRs, SGPRs, ScratchRegs, AllInsts, BranchInsts, CacheMiss, ExecBoundByFlat, ExecBoundByLDS, ExecBoundByTex, ExecTime, FlatInsts, L0CacheHit, L1CacheHit, L2CacheHit, LDSBankConflictRate, LDSBankConflicts, LDSInsts, MemFetchSize, MemFetchSpeedGBps, MemUnitBusy, MemWriteSize, RealOccupancy, SALUBusy, SALUInsts, SFetchInsts, SrcFetchSize, TexInsts, VALUBusy, VALUInsts, VALUInt64Insts, VALUUtilization, WaitOnBarrier, WaitOnSMemLDS, WaitOnVMem, Wavefronts
+globalmem_r1__k1_d1_gfx1010, 1, 9284, 46, {   2048    2048       1}, NULL,        58.90908, 0, 15, 35, 0,     30750.00,      2049.00,         2.60,         0.00,         0.00,         0.00,        60.05,      4098.00,        50.06,         7.39,        94.41,         0.00,         0.00,         0.00,   1727041.31,        29.45,        99.37,     16384.69,        78.77,         5.54,      4101.00,         5.00,  66811052.82,         0.00,        33.23,     20496.00,      4100.00,       100.00,         0.00,         0.18,         0.18,    131072.00
