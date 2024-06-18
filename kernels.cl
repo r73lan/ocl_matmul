@@ -29,8 +29,8 @@ kernel void localmem_r2(global const float *A, global const float *B, global flo
     uint local_i = get_local_id(0);
     uint local_j = get_local_id(1);
     uint group_j = get_group_id(1);
-    local float tileA[LOC_SIZE_r2][LOC_SIZE_r2 + 1];
-    local float tileB[LOC_SIZE_r2][LOC_SIZE_r2 + 1]; 
+    local float tileA[LOC_SIZE_r2][LOC_SIZE_r2];
+    local float tileB[LOC_SIZE_r2][LOC_SIZE_r2]; 
 
     float sum = 0.0;
     for (int tileK = 0; tileK * LOC_SIZE_r2 < K; ++tileK) {
