@@ -11,45 +11,6 @@
 #define THREAD_WORK_X 2
 #define THREAD_WORK_Y 3
 
-void Compare(float* C_host, float* c_val, cl_uint M, cl_uint N) {
-	cl_float min = std::numeric_limits<cl_float>::infinity();
-	char num_threads = 12;
-#pragma omp parallel num_threads(num_threads)
-	{
-		cl_float local_min = std::numeric_limits<cl_float>::infinity();
-#pragma omp for 
-		for (int i = 0; i < M; ++i)
-		{
-			for (int j = 0; j < N; ++j)
-			{
-				if (C_host[i * N + j] < local_min) {
-					local_min = c_val[i * N + j];
-				}
-			}
-		}
-#pragma omp critical
-		{
-			if (local_min <= min) {
-				min = local_min;
-			}
-		}
-	}
-	if (min >= 1.)
-		min = 1.;
-#pragma omp parallel for num_threads(12)
-	for (int i = 0; i < M; ++i)
-	{
-		for (int j = 0; j < N; ++j)
-		{
-			if (fabs(C_host[i * N + j] - c_val[i * N + j]) > std::numeric_limits<cl_float>::epsilon() * min)
-			{
-				printf("Not equal elements in matrixs [%i, %i]\n", i, j);
-			}
-		}
-	}
-	printf("If you dont see text above that elements not equal, matrixes are equal! :)\n");
-}
-
 struct DeviceInfo {
 	std::string deviceName;
 	cl_device_id deviceId;
