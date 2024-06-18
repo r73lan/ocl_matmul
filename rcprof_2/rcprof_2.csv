@@ -14,7 +14,7 @@
 #Device gfx1010 PCIE device id=29471
 #OS Version=Windows 10 Build 10.0.0
 #DisplayName=matmul_2_prof
-#ListSeparator=;
+#ListSeparator=,
 #ForceSinglePass=False
-Method; ExecutionOrder; ThreadID; CallIndex; GlobalWorkSize; WorkGroupSize; Time; LocalMemSize; VGPRs; SGPRs; ScratchRegs; Wavefronts; VALUInsts; SALUInsts; VFetchInsts; SFetchInsts; VWriteInsts; LDSInsts; GDSInsts; VALUUtilization; VALUBusy; SALUBusy; FetchSize; WriteSize; L0CacheHit; L1CacheHit; L2CacheHit; MemUnitBusy; MemUnitStalled; WriteUnitStalled; LDSBankConflict
-add__k1_gfx10101; 1; 8468; 26; {   2064    2064       1}; {   16    16     1};        23,64704; 2176; 48; 35; 0;    133128,00;      3247,00;       267,00;       258,00;         5,00;         0,00;      2322,00;         0,00;       100,00;        19,33;         2,93;   2198346,06;     16641,50;         0,14;        29,15;        61,28;        94,39;         0,17;         0,00;         1,42
+Method, ExecutionOrder, ThreadID, CallIndex, GlobalWorkSize, WorkGroupSize, Time, LocalMemSize, VGPRs, SGPRs, ScratchRegs, AllInsts, BranchInsts, CacheMiss, ExecBoundByFlat, ExecBoundByLDS, ExecBoundByTex, ExecTime, FlatInsts, L0CacheHit, L1CacheHit, L2CacheHit, LDSBankConflictRate, LDSBankConflicts, LDSInsts, MemFetchSize, MemFetchSpeedGBps, MemUnitBusy, MemWriteSize, RealOccupancy, SALUBusy, SALUInsts, SFetchInsts, SrcFetchSize, TexInsts, VALUBusy, VALUInsts, VALUInt64Insts, VALUUtilization, WaitOnBarrier, WaitOnSMemLDS, WaitOnVMem, Wavefronts
+localmem_r2__k1_d1_gfx1010, 1, 7908, 46, {   2064    2064       1}, {   16    16     1},        14.72716, 2176, 48, 35, 0,      6748.00,       130.00,        27.25,         0.05,        98.19,         0.47,        15.02,       260.00,         0.14,        30.21,        61.83,         5.56,       258.00,      2322.00,   2181680.88,       148.74,        96.76,     16641.69,        78.57,         1.46,       267.00,         5.00,   8201141.77,       258.00,        19.30,      3247.00,       263.00,       100.00,        26.89,         0.23,         0.27,    133128.00
