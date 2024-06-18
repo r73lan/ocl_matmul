@@ -11,6 +11,45 @@
 #define THREAD_WORK_X 2
 #define THREAD_WORK_Y 3
 
+void Compare(float* C_host, float* c_val, cl_uint M, cl_uint N) {
+	cl_float min = std::numeric_limits<cl_float>::infinity();
+	char num_threads = 12;
+#pragma omp parallel num_threads(num_threads)
+	{
+		cl_float local_min = std::numeric_limits<cl_float>::infinity();
+#pragma omp for 
+		for (int i = 0; i < M; ++i)
+		{
+			for (int j = 0; j < N; ++j)
+			{
+				if (C_host[i * N + j] < local_min) {
+					local_min = c_val[i * N + j];
+				}
+			}
+		}
+#pragma omp critical
+		{
+			if (local_min <= min) {
+				min = local_min;
+			}
+		}
+	}
+	if (min >= 1.)
+		min = 1.;
+#pragma omp parallel for num_threads(12)
+	for (int i = 0; i < M; ++i)
+	{
+		for (int j = 0; j < N; ++j)
+		{
+			if (fabs(C_host[i * N + j] - c_val[i * N + j]) > std::numeric_limits<cl_float>::epsilon() * min)
+			{
+				printf("Not equal elements in matrixs [%i, %i]\n", i, j);
+			}
+		}
+	}
+	printf("If you dont see text above that elements not equal, matrixes are equal! :)\n");
+}
+
 struct DeviceInfo {
 	std::string deviceName;
 	cl_device_id deviceId;
@@ -513,19 +552,11 @@ int main(int argc, char* argv[]) {
 
 		if (realization == 2 || realization == 3) {
 			cl_uint add_K = K, add_N = N, add_M = M;
-			cl_float* a_t_val_exp = NULL;
 			if (realization == 2) {
 				add_K = LOC_SIZE_r2 * (K / LOC_SIZE_r2 + 1), add_M = LOC_SIZE_r2 * (M / LOC_SIZE_r2 + 1), add_N = LOC_SIZE_r2 * (N / LOC_SIZE_r2 + 1);
 			}
 			if (realization == 3) {
 				add_K = LOC_SIZE_r3 * (K / LOC_SIZE_r3 + 1), add_M = LOC_SIZE_r3 * (M / LOC_SIZE_r3 + 1), add_N = LOC_SIZE_r3 * (N / LOC_SIZE_r3 + 1);
-				a_t_val_exp = (cl_float*)malloc(add_M * add_K * sizeof(cl_float));
-				if (a_t_val_exp == NULL) {
-					printf("Memory allocation error\n");
-					releaseOpenCLResources(NULL, NULL, NULL, NULL, &prog, &queue, &context);
-					freeMatrixMemory(a_val, b_val, c_val);
-					return 1;
-				}
 			}
 			cl_float* a_val_exp = (cl_float*)malloc(add_M * add_K * sizeof(cl_float));
 			cl_float* b_val_exp = (cl_float*)malloc(add_K * add_N * sizeof(cl_float));
@@ -535,7 +566,6 @@ int main(int argc, char* argv[]) {
 				releaseOpenCLResources(NULL, NULL, NULL, NULL, &prog, &queue, &context);
 				freeMatrixMemory(a_val, b_val, c_val);
 				freeMatrixMemory(a_val_exp, b_val_exp, c_val_exp);
-				free(a_t_val_exp);
 				return 1;
 			}
 			for (int i = 0; i < add_M; i++) {
@@ -558,6 +588,16 @@ int main(int argc, char* argv[]) {
 					b_val_exp[i * add_N + j] = b_val[i * N + j];
 				}
 			}
+			cl_float* a_t_val_exp = (cl_float*)malloc(add_M * add_K * sizeof(cl_float));
+			if (a_t_val_exp == NULL) {
+				printf("Memory allocation error\n");
+				releaseOpenCLResources(NULL, NULL, NULL, NULL, &prog, &queue, &context);
+				freeMatrixMemory(a_val, b_val, c_val);
+				freeMatrixMemory(a_val_exp, b_val_exp, c_val_exp);
+				return 1;
+			}
+			Transpose(a_val_exp, a_t_val_exp, add_K, add_M);
+
 			cl_mem a_exp = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(cl_float) * add_M * add_K, NULL, NULL);
 			cl_mem b_exp = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(cl_float) * add_K * add_N, NULL, NULL);
 			cl_mem c_exp = clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(cl_float) * add_M * add_N, NULL, NULL);
@@ -569,15 +609,7 @@ int main(int argc, char* argv[]) {
 				free(a_t_val_exp);
 				return 1;
 			}
-			if (realization == 2)
-			{
-				clEnqueueWriteBuffer(queue, a_exp, CL_FALSE, 0, sizeof(cl_float) * add_M * add_K, a_val_exp, 0, NULL, &write_event_1);
-			}
-			if (realization == 3)
-			{
-				Transpose(a_val_exp, a_t_val_exp, add_K, add_M);
-				clEnqueueWriteBuffer(queue, a_exp, CL_FALSE, 0, sizeof(cl_float) * add_M * add_K, a_t_val_exp, 0, NULL, &write_event_1);
-			}
+			clEnqueueWriteBuffer(queue, a_exp, CL_FALSE, 0, sizeof(cl_float) * add_M * add_K, a_t_val_exp, 0, NULL, &write_event_1);
 			clEnqueueWriteBuffer(queue, b_exp, CL_FALSE, 0, sizeof(cl_float) * add_K * add_N, b_val_exp, 0, NULL, &write_event_2);
 			cl_kernel kernel = clCreateKernel(prog, kernels_name[realization - 1].c_str(), NULL);
 			if (kernel == NULL) {
@@ -614,7 +646,6 @@ int main(int argc, char* argv[]) {
 					c_val[i * N + j] = c_val_exp[i * add_N + j];
 				}
 			}
-			writeMatrixToFile(N, M, c_val, args["output"].c_str());
 			free(a_t_val_exp);
 			freeMatrixMemory(a_val_exp, b_val_exp, c_val_exp);
 		}
@@ -636,6 +667,7 @@ int main(int argc, char* argv[]) {
 		if (realization == 3) {
 			printf("LOCAL_WORK_SIZE [%i, %i]\nWI_WORK %i\n", LOC_SIZE_r3 / THREAD_WORK_X, LOC_SIZE_r3 / THREAD_WORK_Y, THREAD_WORK_X * THREAD_WORK_Y);
 		}
+		writeMatrixToFile(N, M, c_val, args["output"].c_str());
 		freeMatrixMemory(a_val, b_val, c_val);
 	}
 }
