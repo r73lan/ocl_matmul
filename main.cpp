@@ -507,16 +507,14 @@ int main(int argc, char* argv[]) {
 			size_t global_work_size[2] = { N, M };
 			clEnqueueNDRangeKernel(queue, kernel, 2, NULL, &global_work_size[0], NULL, 0, NULL, &kernel_event);
 			clEnqueueReadBuffer(queue, c, CL_TRUE, 0, sizeof(cl_float) * M * N, c_val, 0, NULL, &read_event);
-			writeMatrixToFile(N, M, c_val, args["output"].c_str());
-			releaseOpenCLResources(&kernel, &a, &b, &c, &prog, &queue, &context);
 		}
 
-		if (realization == 2 || realization == 3) {
+		else if (realization == 2 || realization == 3) {
 			cl_uint add_K = K, add_N = N, add_M = M;
 			if (realization == 2) {
 				add_K = LOC_SIZE_r2 * (K / LOC_SIZE_r2 + 1), add_M = LOC_SIZE_r2 * (M / LOC_SIZE_r2 + 1), add_N = LOC_SIZE_r2 * (N / LOC_SIZE_r2 + 1);
 			}
-			if (realization == 3) {
+			else if (realization == 3) {
 				add_K = LOC_SIZE_r3 * (K / LOC_SIZE_r3 + 1), add_M = LOC_SIZE_r3 * (M / LOC_SIZE_r3 + 1), add_N = LOC_SIZE_r3 * (N / LOC_SIZE_r3 + 1);
 			}
 			cl_float* a_val_exp = (cl_float*)malloc(add_M * add_K * sizeof(cl_float));
@@ -559,31 +557,31 @@ int main(int argc, char* argv[]) {
 			}
 			Transpose(a_val_exp, a_t_val_exp, add_K, add_M);
 
-			cl_mem a_exp = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(cl_float) * add_M * add_K, NULL, NULL);
-			cl_mem b_exp = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(cl_float) * add_K * add_N, NULL, NULL);
-			cl_mem c_exp = clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(cl_float) * add_M * add_N, NULL, NULL);
+			cl_mem a = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(cl_float) * add_M * add_K, NULL, NULL);
+			cl_mem b = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(cl_float) * add_K * add_N, NULL, NULL);
+			cl_mem c = clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(cl_float) * add_M * add_N, NULL, NULL);
 			if (a_exp == NULL || b_exp == NULL || c_exp == NULL) {
 				printf("Failed to create buffers\n");
-				releaseOpenCLResources(NULL, &a_exp, &b_exp, &c_exp, &prog, &queue, &context);
+				releaseOpenCLResources(NULL, &a, &b, &c, &prog, &queue, &context);
 				freeMatrixMemory(a_val, b_val, c_val);
 				freeMatrixMemory(a_val_exp, b_val_exp, c_val_exp);
 				free(a_t_val_exp);
 				return 1;
 			}
-			clEnqueueWriteBuffer(queue, a_exp, CL_FALSE, 0, sizeof(cl_float) * add_M * add_K, a_t_val_exp, 0, NULL, &write_event_1);
-			clEnqueueWriteBuffer(queue, b_exp, CL_FALSE, 0, sizeof(cl_float) * add_K * add_N, b_val_exp, 0, NULL, &write_event_2);
+			clEnqueueWriteBuffer(queue, a, CL_FALSE, 0, sizeof(cl_float) * add_M * add_K, a_t_val_exp, 0, NULL, &write_event_1);
+			clEnqueueWriteBuffer(queue, b, CL_FALSE, 0, sizeof(cl_float) * add_K * add_N, b_val_exp, 0, NULL, &write_event_2);
 			cl_kernel kernel = clCreateKernel(prog, kernels_name[realization - 1].c_str(), NULL);
 			if (kernel == NULL) {
 				printf("Error: kernel %s doesnt create\n", kernels_name[realization - 1].c_str());
-				releaseOpenCLResources(NULL, &a_exp, &b_exp, &c_exp, &prog, &queue, &context);
+				releaseOpenCLResources(NULL, &a, &b, &c, &prog, &queue, &context);
 				freeMatrixMemory(a_val, b_val, c_val);
 				freeMatrixMemory(a_val_exp, b_val_exp, c_val_exp);
 				free(a_t_val_exp);
 				return 1;
 			}
-			clSetKernelArg(kernel, 0, sizeof(cl_mem), &a_exp);
-			clSetKernelArg(kernel, 1, sizeof(cl_mem), &b_exp);
-			clSetKernelArg(kernel, 2, sizeof(cl_mem), &c_exp);
+			clSetKernelArg(kernel, 0, sizeof(cl_mem), &a);
+			clSetKernelArg(kernel, 1, sizeof(cl_mem), &b);
+			clSetKernelArg(kernel, 2, sizeof(cl_mem), &c);
 			clSetKernelArg(kernel, 3, sizeof(cl_uint), &add_M);
 			clSetKernelArg(kernel, 4, sizeof(cl_uint), &add_N);
 			clSetKernelArg(kernel, 5, sizeof(cl_uint), &add_K);
@@ -601,7 +599,7 @@ int main(int argc, char* argv[]) {
 				local_work_size[1] = LOC_SIZE_r3 / THREAD_WORK_Y;
 			}
 			clEnqueueNDRangeKernel(queue, kernel, 2, NULL, global_work_size, local_work_size, 0, NULL, &kernel_event);
-			clEnqueueReadBuffer(queue, c_exp, CL_TRUE, 0, sizeof(cl_float) * add_M * add_N, c_val_exp, 0, NULL, &read_event);
+			clEnqueueReadBuffer(queue, c, CL_TRUE, 0, sizeof(cl_float) * add_M * add_N, c_val_exp, 0, NULL, &read_event);
 			for (int i = 0; i < M; i++) {
 				for (int j = 0; j < N; j++) {
 					c_val[i * N + j] = c_val_exp[i * add_N + j];
@@ -628,7 +626,8 @@ int main(int argc, char* argv[]) {
 		if (realization == 3) {
 			printf("LOCAL_WORK_SIZE [%i, %i]\nWI_WORK %i\n", LOC_SIZE_r3 / THREAD_WORK_X, LOC_SIZE_r3 / THREAD_WORK_Y, THREAD_WORK_X * THREAD_WORK_Y);
 		}
-		writeMatrixToFile(N, M, c_val, args["output"].c_str());
-		freeMatrixMemory(a_val, b_val, c_val);
+		releaseOpenCLResources(&kernel, &a, &b, &c, &prog, &queue, &context);
 	}
+	writeMatrixToFile(N, M, c_val, args["output"].c_str());
+	freeMatrixMemory(a_val, b_val, c_val);
 }
