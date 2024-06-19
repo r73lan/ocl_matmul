@@ -560,7 +560,7 @@ int main(int argc, char* argv[]) {
 			cl_mem a = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(cl_float) * add_M * add_K, NULL, NULL);
 			cl_mem b = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(cl_float) * add_K * add_N, NULL, NULL);
 			cl_mem c = clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(cl_float) * add_M * add_N, NULL, NULL);
-			if (a_exp == NULL || b_exp == NULL || c_exp == NULL) {
+			if (a == NULL || b == NULL || c == NULL) {
 				printf("Failed to create buffers\n");
 				releaseOpenCLResources(NULL, &a, &b, &c, &prog, &queue, &context);
 				freeMatrixMemory(a_val, b_val, c_val);
