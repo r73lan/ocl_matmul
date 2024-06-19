@@ -406,7 +406,6 @@ int main(int argc, char* argv[]) {
 	char realization = std::stoi(args["realization"]);
 	if (realization == 0) {
 		MatMul_omp(a_val, b_val, c_val, M, N, K);
-		writeMatrixToFile(N, M, c_val, args["output"].c_str());
 	}
 	else
 	{
