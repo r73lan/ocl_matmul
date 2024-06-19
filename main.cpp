@@ -479,6 +479,10 @@ int main(int argc, char* argv[]) {
 			return 1;
 		}
 		cl_event write_event_1 = NULL, kernel_event = NULL, read_event = NULL, write_event_2 = NULL;
+		cl_kernel kernel = NULL;
+		cl_mem a = NULL;
+		cl_mem b = NULL;
+		cl_mem c = NULL;
 		if (realization == 1) {
 			cl_mem a = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(cl_float) * M * K, NULL, NULL);
 			cl_mem b = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(cl_float) * K * N, NULL, NULL);
