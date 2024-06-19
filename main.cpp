@@ -484,9 +484,9 @@ int main(int argc, char* argv[]) {
 		cl_mem b = NULL;
 		cl_mem c = NULL;
 		if (realization == 1) {
-			cl_mem a = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(cl_float) * M * K, NULL, NULL);
-			cl_mem b = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(cl_float) * K * N, NULL, NULL);
-			cl_mem c = clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(cl_float) * M * N, NULL, NULL);
+			a = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(cl_float) * M * K, NULL, NULL);
+			b = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(cl_float) * K * N, NULL, NULL);
+			c = clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(cl_float) * M * N, NULL, NULL);
 			if (a == NULL || b == NULL || c == NULL) {
 				printf("Failed to create buffers\n");
 				releaseOpenCLResources(NULL, &a, &b, &c, &prog, &queue, &context);
@@ -495,7 +495,7 @@ int main(int argc, char* argv[]) {
 			}
 			clEnqueueWriteBuffer(queue, a, CL_FALSE, 0, sizeof(cl_float) * M * K, a_val, 0, NULL, &write_event_1);
 			clEnqueueWriteBuffer(queue, b, CL_FALSE, 0, sizeof(cl_float) * K * N, b_val, 0, NULL, &write_event_2);
-			cl_kernel kernel = clCreateKernel(prog, kernels_name[0].c_str(), NULL);
+			kernel = clCreateKernel(prog, kernels_name[0].c_str(), NULL);
 			if (kernel == NULL) {
 				printf("Error: kernel %s doesnt create\n", kernels_name[0].c_str());
 				releaseOpenCLResources(NULL, &a, &b, &c, &prog, &queue, &context);
@@ -561,9 +561,9 @@ int main(int argc, char* argv[]) {
 			}
 			Transpose(a_val_exp, a_t_val_exp, add_K, add_M);
 
-			cl_mem a = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(cl_float) * add_M * add_K, NULL, NULL);
-			cl_mem b = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(cl_float) * add_K * add_N, NULL, NULL);
-			cl_mem c = clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(cl_float) * add_M * add_N, NULL, NULL);
+			a = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(cl_float) * add_M * add_K, NULL, NULL);
+			b = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(cl_float) * add_K * add_N, NULL, NULL);
+			c = clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(cl_float) * add_M * add_N, NULL, NULL);
 			if (a == NULL || b == NULL || c == NULL) {
 				printf("Failed to create buffers\n");
 				releaseOpenCLResources(NULL, &a, &b, &c, &prog, &queue, &context);
@@ -574,7 +574,7 @@ int main(int argc, char* argv[]) {
 			}
 			clEnqueueWriteBuffer(queue, a, CL_FALSE, 0, sizeof(cl_float) * add_M * add_K, a_t_val_exp, 0, NULL, &write_event_1);
 			clEnqueueWriteBuffer(queue, b, CL_FALSE, 0, sizeof(cl_float) * add_K * add_N, b_val_exp, 0, NULL, &write_event_2);
-			cl_kernel kernel = clCreateKernel(prog, kernels_name[realization - 1].c_str(), NULL);
+			kernel = clCreateKernel(prog, kernels_name[realization - 1].c_str(), NULL);
 			if (kernel == NULL) {
 				printf("Error: kernel %s doesnt create\n", kernels_name[realization - 1].c_str());
 				releaseOpenCLResources(NULL, &a, &b, &c, &prog, &queue, &context);
