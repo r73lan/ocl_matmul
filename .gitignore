@@ -30,3 +30,8 @@
 *.exe
 *.out
 *.app
+
+#Check files
+rcprof_1
+rcptof_2
+rcprof_3
